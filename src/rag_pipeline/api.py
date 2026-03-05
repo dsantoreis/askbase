@@ -80,6 +80,11 @@ class HealthzLiteResponse(BaseModel):
     uptime_seconds: float
 
 
+class ReadyzLiteResponse(BaseModel):
+    ready: bool
+    uptime_seconds: float
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -300,6 +305,13 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return JSONResponse(
             status_code=200 if ready else 503,
             content=payload.model_dump(),
+        )
+
+    @app.get("/readyz-lite", response_model=ReadyzLiteResponse)
+    def readyz_lite() -> ReadyzLiteResponse:
+        return ReadyzLiteResponse(
+            ready=_is_ready(),
+            uptime_seconds=time.monotonic() - state["started_at"],
         )
 
     @app.get("/statusz", response_model=StatuszResponse)
