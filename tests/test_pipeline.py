@@ -106,8 +106,9 @@ def test_deduplicate_same_content(tmp_path: Path):
     assert len({c.doc_id for c in rag.chunks}) == 1
 
 
-def test_ingest_supports_markdown_extension(tmp_path: Path):
-    doc = tmp_path / "guide.markdown"
+@pytest.mark.parametrize("filename", ["guide.markdown", "guide.mdx", "guide.rst"])
+def test_ingest_supports_text_extensions(tmp_path: Path, filename: str):
+    doc = tmp_path / filename
     doc.write_text(
         "Incident guide: rotate keys and revoke compromised sessions.",
         encoding="utf-8",
@@ -117,7 +118,7 @@ def test_ingest_supports_markdown_extension(tmp_path: Path):
     count = rag.ingest_paths([doc])
 
     assert count >= 1
-    assert rag.chunks[0].doc_id.endswith("guide.markdown")
+    assert rag.chunks[0].doc_id.endswith(filename)
 
 
 def test_retrieve_rejects_non_positive_top_k(sample_docs: list[Path]):
