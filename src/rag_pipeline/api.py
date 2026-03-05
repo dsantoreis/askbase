@@ -247,6 +247,9 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_timez_requests_total Total number of /timez requests.",
         "# TYPE rag_api_timez_requests_total counter",
         f"rag_api_timez_requests_total {state['timez_requests_total']}",
+        "# HELP rag_api_readyz_reason_requests_total Total number of /readyz-reason requests.",
+        "# TYPE rag_api_readyz_reason_requests_total counter",
+        f"rag_api_readyz_reason_requests_total {state['readyz_reason_requests_total']}",
         "# HELP rag_api_ask_requests_total Total number of /ask requests.",
         "# TYPE rag_api_ask_requests_total counter",
         f"rag_api_ask_requests_total {state['ask_requests_total']}",
@@ -360,6 +363,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "echoz_requests_total": 0,
         "ready_requests_total": 0,
         "readyz_lite_requests_total": 0,
+        "readyz_reason_requests_total": 0,
         "statusz_requests_total": 0,
         "meta_lite_requests_total": 0,
         "pingz_requests_total": 0,
@@ -493,6 +497,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/readyz-reason", response_model=ReadyzReasonResponse)
     def readyz_reason() -> ReadyzReasonResponse:
+        state["readyz_reason_requests_total"] += 1
         index_path = state["index_path"]
         artifacts_dir = index_path.parent
         reasons: list[str] = []
@@ -717,6 +722,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "timez": state["timez_requests_total"],
             "ready": state["ready_requests_total"],
             "readyz_lite": state["readyz_lite_requests_total"],
+            "readyz_reason": state["readyz_reason_requests_total"],
             "statusz": state["statusz_requests_total"],
             "meta_lite": state["meta_lite_requests_total"],
             "ask": state["ask_requests_total"],

@@ -200,6 +200,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "timez": 1,
         "ready": 1,
         "readyz_lite": 1,
+        "readyz_reason": 1,
         "statusz": 1,
         "meta_lite": 1,
         "ask": 0,
@@ -219,13 +220,14 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "limits": 0,
         "stats": 1,
     }
-    assert stats_before_ask_payload["requests_total"] == 19
+    assert stats_before_ask_payload["requests_total"] == 20
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
     assert "rag_api_version_requests_total 1" in metrics.text
     assert "rag_api_ask_safe_requests_total 0" in metrics.text
+    assert "rag_api_readyz_reason_requests_total 1" in metrics.text
     assert "rag_api_metrics_requests_total 1" in metrics.text
 
     limits = client.get("/limits")
@@ -273,7 +275,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask_payload["ask_latency_avg_seconds"] >= 0
     assert stats_after_ask_payload["ingest_latency_samples"] == 0
     assert stats_after_ask_payload["ingest_latency_avg_seconds"] == 0
-    assert stats_after_ask_payload["requests_total"] == 25
+    assert stats_after_ask_payload["requests_total"] == 26
 
 
 def test_api_rejects_blank_query_with_422(tmp_path: Path):
@@ -555,6 +557,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "timez": 0,
         "ready": 1,
         "readyz_lite": 1,
+        "readyz_reason": 1,
         "statusz": 1,
         "meta_lite": 1,
         "ask": 1,
@@ -574,7 +577,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "limits": 0,
         "stats": 1,
     }
-    assert stats_payload["requests_total"] == 12
+    assert stats_payload["requests_total"] == 13
 
 
 def test_api_ingest_then_ask(tmp_path: Path):
