@@ -109,11 +109,16 @@ python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 
 Endpoints:
 - `GET /health`
 - `GET /metrics`
+- `POST /ingest`
 - `POST /ask`
 
-Exemplo:
+Exemplo (ingest + ask):
 
 ```bash
+curl -X POST http://127.0.0.1:8080/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"doc_id":"runbook:mfa","text":"Falhas recorrentes de MFA devem ser tratadas com reset de enrollment e validação de identidade."}'
+
 curl -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'

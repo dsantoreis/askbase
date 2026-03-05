@@ -53,6 +53,31 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     assert res.status_code == 400
 
 
+def test_api_ingest_then_ask(tmp_path: Path):
+    index = tmp_path / "api_ingest.pkl"
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    ingest = client.post(
+        "/ingest",
+        json={
+            "doc_id": "runbook:mfa",
+            "text": "Runbook: recurring MFA failures are fixed by resetting enrollment and confirming identity.",
+        },
+    )
+    assert ingest.status_code == 200
+    ingest_payload = ingest.json()
+    assert ingest_payload["chunks_indexed"] >= 1
+    assert Path(ingest_payload["index_path"]).exists()
+
+    ask = client.post("/ask", json={"query": "How to solve recurring MFA failures?"})
+    assert ask.status_code == 200
+    ask_payload = ask.json()
+    assert "answer" in ask_payload
+    assert len(ask_payload["citations"]) >= 1
+    assert ask_payload["citations"][0]["doc_id"] == "runbook:mfa"
+
+
 def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()
