@@ -55,8 +55,8 @@ python -m rag_pipeline.cli ingest data --index artifacts/rag_index.pkl
 # 2) Query simples
 python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" --index artifacts/rag_index.pkl --top-k 3
 
-# 3) Gate de qualidade (format/lint/unit/smoke)
-npm run quality
+# 3) Gate de qualidade completo (quality + API/CLI)
+npm run quality:full
 ```
 
 ## Uso CLI
@@ -108,6 +108,7 @@ python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 
 
 Endpoints:
 - `GET /health`
+- `GET /metrics`
 - `POST /ask`
 
 Exemplo:
@@ -116,6 +117,23 @@ Exemplo:
 curl -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
+```
+
+### Runbook rápido (health + metrics)
+
+```bash
+# 1) Health check
+curl -s http://127.0.0.1:8080/health | jq .
+
+# 2) Métricas estilo Prometheus
+curl -s http://127.0.0.1:8080/metrics
+
+# 3) Sanidade fim-a-fim (health + ask + metrics)
+curl -s http://127.0.0.1:8080/health | jq .status
+curl -s -X POST http://127.0.0.1:8080/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"How solve VPN issues?","top_k":2}' | jq .answer
+curl -s http://127.0.0.1:8080/metrics | grep -E 'rag_api_(health|ask)_requests_total'
 ```
 
 ---
@@ -147,11 +165,23 @@ curl -X POST http://127.0.0.1:8080/ask \
 
 ## Qualidade e testes
 
-### Checklist único (recomendado)
+### Gate padrão
 Roda **format check + lint + unit + smoke** em sequência.
 
 ```bash
 npm run quality
+```
+
+### Gate completo (pré-publicação)
+Roda gate padrão + testes de API/CLI.
+
+```bash
+npm run quality:full
+```
+
+### API/CLI
+```bash
+npm run test:api-cli
 ```
 
 ### Unit (pipeline completo)
@@ -164,6 +194,13 @@ Valida somente o ciclo `save/load` do índice, sem rodar todos os cenários do p
 ```bash
 npm run test:persistence-smoke
 ```
+
+### Checklist pré-publicação
+- [ ] `npm run quality:full` passou localmente
+- [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
+- [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `POST /ask` testados
+- [ ] README atualizado com comandos finais de validação
 
 ---
 

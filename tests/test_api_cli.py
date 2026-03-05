@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -6,7 +9,7 @@ from rag_pipeline.api import create_app
 from rag_pipeline.pipeline import IngestConfig, RAGPipeline
 
 
-def test_api_health_and_ask(tmp_path: Path):
+def test_api_health_metrics_and_ask(tmp_path: Path):
     doc = tmp_path / "kb.txt"
     doc.write_text(
         "Internal KB: VPN issues require checking MFA enrollment first.",
@@ -21,13 +24,25 @@ def test_api_health_and_ask(tmp_path: Path):
     app = create_app(str(index))
     client = TestClient(app)
 
-    assert client.get("/health").status_code == 200
+    health = client.get("/health")
+    assert health.status_code == 200
+    health_payload = health.json()
+    assert health_payload["status"] == "ok"
+    assert health_payload["index_loaded"] is True
+
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+    assert "rag_api_health_requests_total" in metrics.text
+
     res = client.post("/ask", json={"query": "How solve VPN issues?", "top_k": 2})
     assert res.status_code == 200
     body = res.json()
     assert "answer" in body
     assert "citations" in body
     assert len(body["citations"]) >= 1
+
+    metrics_after_ask = client.get("/metrics")
+    assert "rag_api_ask_requests_total 1" in metrics_after_ask.text
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -36,3 +51,57 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400
+
+
+def test_cli_ingest_and_ask_json(tmp_path: Path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "ops.md").write_text(
+        "For recurring MFA failures, reset enrollment and validate user identity first.",
+        encoding="utf-8",
+    )
+
+    index = tmp_path / "rag_cli.pkl"
+
+    ingest = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ingest",
+            str(docs),
+            "--index",
+            str(index),
+            "--chunk-size",
+            "80",
+            "--overlap",
+            "10",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "Indexed" in ingest.stdout
+    assert index.exists()
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "2",
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(ask.stdout)
+    assert "answer" in payload
+    assert isinstance(payload.get("citations"), list)
+    assert len(payload["citations"]) >= 1
