@@ -106,6 +106,20 @@ def test_deduplicate_same_content(tmp_path: Path):
     assert len({c.doc_id for c in rag.chunks}) == 1
 
 
+def test_ingest_supports_markdown_extension(tmp_path: Path):
+    doc = tmp_path / "guide.markdown"
+    doc.write_text(
+        "Incident guide: rotate keys and revoke compromised sessions.",
+        encoding="utf-8",
+    )
+
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    count = rag.ingest_paths([doc])
+
+    assert count >= 1
+    assert rag.chunks[0].doc_id.endswith("guide.markdown")
+
+
 def test_retrieve_rejects_non_positive_top_k(sample_docs: list[Path]):
     rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
     rag.ingest_paths(sample_docs)

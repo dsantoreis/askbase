@@ -51,7 +51,7 @@ class AnswerResult:
 
 
 class RAGPipeline:
-    SUPPORTED_EXTENSIONS = {".txt", ".md"}
+    SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown"}
     INDEX_VERSION = "2.2"
 
     def __init__(
