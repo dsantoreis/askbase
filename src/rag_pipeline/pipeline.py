@@ -128,10 +128,13 @@ class RAGPipeline:
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
 
+        query_terms = set(_normalize_terms(query))
+        if not query_terms:
+            return []
+
         qv = self.vectorizer.transform([query])
         lexical_scores = cosine_similarity(qv, self._matrix)[0]
         semantic_scores = self._semantic_similarity(query)
-        query_terms = set(_normalize_terms(query))
 
         ranked: list[dict[str, Any]] = []
         for i, chunk in enumerate(self.chunks):
@@ -252,7 +255,16 @@ class RAGPipeline:
             correct = sum(1 for doc_id in predicted if doc_id in relevant_doc_ids)
             precision = correct / max(k, 1)
             scores.append(precision)
-            details.append({"query": query, "precision": precision, "hits": predicted})
+            details.append(
+                {
+                    "query": query,
+                    "precision": precision,
+                    "hits": predicted,
+                    "predicted_doc_ids": predicted,
+                    "relevant_doc_ids": sorted(relevant_doc_ids),
+                    "correct_hits": correct,
+                }
+            )
 
         return {
             "metric": f"precision@{k}",

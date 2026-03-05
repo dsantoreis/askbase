@@ -81,6 +81,12 @@ def test_persist_load_and_eval(sample_docs: list[Path], tmp_path: Path):
     assert report["metric"] == "precision@2"
     assert report["samples"] == 2
     assert 0.0 <= report["value"] <= 1.0
+    assert len(report["details"]) == 2
+    first_detail = report["details"][0]
+    assert "predicted_doc_ids" in first_detail
+    assert "relevant_doc_ids" in first_detail
+    assert "correct_hits" in first_detail
+    assert first_detail["hits"] == first_detail["predicted_doc_ids"]
 
 
 def test_ingest_validation_rejects_large_file(tmp_path: Path):
@@ -215,6 +221,15 @@ def test_retrieve_returns_matched_terms(sample_docs: list[Path]):
 
     assert hits
     assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
+
+
+def test_retrieve_returns_empty_for_punctuation_only_query(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    hits = rag.retrieve("...?!", top_k=3)
+
+    assert hits == []
 
 
 def test_retrieve_normalizes_hyphenated_query_terms(sample_docs: list[Path]):
