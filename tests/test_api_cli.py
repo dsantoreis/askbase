@@ -179,9 +179,15 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_before_ask_payload["uptime_seconds"] >= 0
     assert stats_before_ask_payload["counters"] == {
         "health": 1,
+        "healthz_lite": 1,
+        "alivez": 1,
+        "echoz": 1,
         "pingz": 1,
         "timez": 1,
         "ready": 1,
+        "readyz_lite": 1,
+        "statusz": 1,
+        "meta_lite": 1,
         "ask": 0,
         "ask_errors": 0,
         "ingest": 0,
@@ -191,7 +197,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "openapi_lite": 1,
         "routes_hash": 2,
     }
-    assert stats_before_ask_payload["requests_total"] == 9
+    assert stats_before_ask_payload["requests_total"] == 15
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -220,7 +226,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 2
-    assert stats_after_ask_payload["requests_total"] == 11
+    assert stats_after_ask_payload["requests_total"] == 17
 
 
 def test_api_rejects_blank_query_with_422(tmp_path: Path):
@@ -349,9 +355,15 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     stats_payload = stats.json()
     assert stats_payload["counters"] == {
         "health": 0,
+        "healthz_lite": 0,
+        "alivez": 1,
+        "echoz": 1,
         "pingz": 0,
         "timez": 0,
         "ready": 1,
+        "readyz_lite": 1,
+        "statusz": 1,
+        "meta_lite": 1,
         "ask": 1,
         "ask_errors": 1,
         "ingest": 0,
@@ -361,7 +373,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "openapi_lite": 0,
         "routes_hash": 0,
     }
-    assert stats_payload["requests_total"] == 5
+    assert stats_payload["requests_total"] == 10
 
 
 def test_api_ingest_then_ask(tmp_path: Path):

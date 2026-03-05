@@ -268,7 +268,13 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "started_at": time.monotonic(),
         "started_at_iso": datetime.now(tz=UTC).isoformat(),
         "health_requests_total": 0,
+        "healthz_lite_requests_total": 0,
+        "alivez_requests_total": 0,
+        "echoz_requests_total": 0,
         "ready_requests_total": 0,
+        "readyz_lite_requests_total": 0,
+        "statusz_requests_total": 0,
+        "meta_lite_requests_total": 0,
         "pingz_requests_total": 0,
         "timez_requests_total": 0,
         "diag_requests_total": 0,
@@ -313,6 +319,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/healthz-lite", response_model=HealthzLiteResponse)
     def healthz_lite() -> HealthzLiteResponse:
+        state["healthz_lite_requests_total"] += 1
         return HealthzLiteResponse(
             status="ok",
             uptime_seconds=time.monotonic() - state["started_at"],
@@ -320,10 +327,12 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/alivez", response_model=AlivezResponse)
     def alivez() -> AlivezResponse:
+        state["alivez_requests_total"] += 1
         return AlivezResponse(status="alive")
 
     @app.get("/echoz", response_model=EchozResponse)
     def echoz() -> EchozResponse:
+        state["echoz_requests_total"] += 1
         return EchozResponse(status="ok", service=app.title)
 
     @app.get("/pingz", response_model=PingzResponse)
@@ -380,6 +389,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/readyz-lite", response_model=ReadyzLiteResponse)
     def readyz_lite() -> ReadyzLiteResponse:
+        state["readyz_lite_requests_total"] += 1
         return ReadyzLiteResponse(
             ready=_is_ready(),
             uptime_seconds=time.monotonic() - state["started_at"],
@@ -387,6 +397,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/statusz", response_model=StatuszResponse)
     def statusz() -> StatuszResponse:
+        state["statusz_requests_total"] += 1
         return StatuszResponse(
             ready=_is_ready(),
             uptime_seconds=time.monotonic() - state["started_at"],
@@ -395,6 +406,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/meta-lite", response_model=MetaLiteResponse)
     def meta_lite() -> MetaLiteResponse:
+        state["meta_lite_requests_total"] += 1
         return MetaLiteResponse(
             app_name=app.title,
             app_version=app.version,
@@ -551,9 +563,15 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     def stats() -> StatsResponse:
         counters = {
             "health": state["health_requests_total"],
+            "healthz_lite": state["healthz_lite_requests_total"],
+            "alivez": state["alivez_requests_total"],
+            "echoz": state["echoz_requests_total"],
             "pingz": state["pingz_requests_total"],
             "timez": state["timez_requests_total"],
             "ready": state["ready_requests_total"],
+            "readyz_lite": state["readyz_lite_requests_total"],
+            "statusz": state["statusz_requests_total"],
+            "meta_lite": state["meta_lite_requests_total"],
             "ask": state["ask_requests_total"],
             "ask_errors": state["ask_errors_total"],
             "ingest": state["ingest_requests_total"],
