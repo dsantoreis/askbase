@@ -118,7 +118,8 @@ class RAGPipeline:
             if normalized_doc_filter and normalized_doc_filter not in chunk.doc_id.lower():
                 continue
             chunk_terms = set(_normalize_terms(chunk.text))
-            overlap = len(query_terms.intersection(chunk_terms))
+            matched_terms = sorted(query_terms.intersection(chunk_terms))
+            overlap = len(matched_terms)
             keyword_score = overlap / max(len(query_terms), 1)
             semantic_score = (
                 float(semantic_scores[i]) if semantic_scores is not None else 0.0
@@ -142,6 +143,7 @@ class RAGPipeline:
                         "lexical_score": float(lexical_scores[i]),
                         "keyword_score": keyword_score,
                         "semantic_score": semantic_score,
+                        "matched_terms": matched_terms,
                     }
                 )
 
