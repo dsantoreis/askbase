@@ -29,7 +29,10 @@ class IngestConfig:
 class RetrievalConfig:
     lexical_weight: float = 0.7
     keyword_weight: float = 0.3
+    semantic_weight: float = 0.0
     rerank_boost: float = 0.15
+    use_semantic: bool = False
+    semantic_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 @dataclass
@@ -49,7 +52,7 @@ class AnswerResult:
 
 class RAGPipeline:
     SUPPORTED_EXTENSIONS = {".txt", ".md"}
-    INDEX_VERSION = "2.1"
+    INDEX_VERSION = "2.2"
 
     def __init__(
         self,
@@ -62,6 +65,8 @@ class RAGPipeline:
         self.chunks: list[Chunk] = []
         self._matrix: Any = None
         self._doc_hashes: dict[str, str] = {}
+        self._semantic_model: Any = None
+        self._semantic_embeddings: Any = None
 
     def ingest_paths(self, paths: list[str | Path]) -> int:
         all_chunks: list[Chunk] = []
@@ -84,6 +89,7 @@ class RAGPipeline:
         self.chunks = all_chunks
         texts = [c.text for c in self.chunks]
         self._matrix = self.vectorizer.fit_transform(texts) if texts else None
+        self._semantic_embeddings = self._encode_semantic_texts(texts)
         logger.info("ingest_complete", extra={"chunks": len(self.chunks)})
         return len(self.chunks)
 
@@ -93,6 +99,7 @@ class RAGPipeline:
 
         qv = self.vectorizer.transform([query])
         lexical_scores = cosine_similarity(qv, self._matrix)[0]
+        semantic_scores = self._semantic_similarity(query)
         query_terms = set(_normalize_terms(query))
 
         ranked: list[dict[str, Any]] = []
@@ -100,10 +107,14 @@ class RAGPipeline:
             chunk_terms = set(_normalize_terms(chunk.text))
             overlap = len(query_terms.intersection(chunk_terms))
             keyword_score = overlap / max(len(query_terms), 1)
+            semantic_score = (
+                float(semantic_scores[i]) if semantic_scores is not None else 0.0
+            )
 
             hybrid_score = (
                 self.retrieval_config.lexical_weight * float(lexical_scores[i])
                 + self.retrieval_config.keyword_weight * keyword_score
+                + self.retrieval_config.semantic_weight * semantic_score
             )
             rerank_bonus = self._rerank_bonus(query_terms, chunk_terms)
             final_score = (
@@ -117,6 +128,7 @@ class RAGPipeline:
                         "score": final_score,
                         "lexical_score": float(lexical_scores[i]),
                         "keyword_score": keyword_score,
+                        "semantic_score": semantic_score,
                     }
                 )
 
@@ -190,6 +202,7 @@ class RAGPipeline:
             "ingest_config": self.ingest_config.__dict__,
             "retrieval_config": self.retrieval_config.__dict__,
             "doc_hashes": self._doc_hashes,
+            "semantic_embeddings": self._semantic_embeddings,
         }
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +228,44 @@ class RAGPipeline:
         instance.chunks = payload["chunks"]
         instance._matrix = payload["matrix"]
         instance._doc_hashes = payload.get("doc_hashes", {})
+        instance._semantic_embeddings = payload.get("semantic_embeddings")
         return instance
+
+    def _encode_semantic_texts(self, texts: list[str]) -> Any:
+        if not self.retrieval_config.use_semantic or not texts:
+            return None
+        try:
+            if self._semantic_model is None:
+                from sentence_transformers import SentenceTransformer
+
+                self._semantic_model = SentenceTransformer(
+                    self.retrieval_config.semantic_model
+                )
+            return self._semantic_model.encode(texts)
+        except Exception:
+            logger.warning("semantic_embeddings_disabled", exc_info=True)
+            self.retrieval_config.use_semantic = False
+            return None
+
+    def _semantic_similarity(self, query: str) -> Any:
+        if (
+            not self.retrieval_config.use_semantic
+            or self._semantic_embeddings is None
+            or not query.strip()
+        ):
+            return None
+        try:
+            if self._semantic_model is None:
+                from sentence_transformers import SentenceTransformer
+
+                self._semantic_model = SentenceTransformer(
+                    self.retrieval_config.semantic_model
+                )
+            query_embedding = self._semantic_model.encode([query])
+            return cosine_similarity(query_embedding, self._semantic_embeddings)[0]
+        except Exception:
+            logger.warning("semantic_similarity_failed", exc_info=True)
+            return None
 
     def _read_and_chunk(self, path: Path, seen_hashes: set[str]) -> list[Chunk]:
         self._validate_file(path)

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from rag_pipeline.pipeline import IngestConfig, RAGPipeline
+from rag_pipeline.pipeline import IngestConfig, RAGPipeline, RetrievalConfig
 
 
 @pytest.fixture
@@ -104,3 +104,40 @@ def test_deduplicate_same_content(tmp_path: Path):
 
     assert count > 0
     assert len({c.doc_id for c in rag.chunks}) == 1
+
+
+def test_semantic_retrieval_can_drive_ranking(tmp_path: Path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    car = docs / "car.txt"
+    cloud = docs / "cloud.txt"
+    car.write_text("automobile handbook", encoding="utf-8")
+    cloud.write_text("cloud infrastructure", encoding="utf-8")
+
+    class FakeSemanticModel:
+        def encode(self, texts):
+            mapping = {
+                "automobile handbook": [1.0, 0.0],
+                "cloud infrastructure": [0.0, 1.0],
+                "car guide": [1.0, 0.0],
+            }
+            return [mapping.get(text, [0.0, 0.0]) for text in texts]
+
+    rag = RAGPipeline(
+        ingest_config=IngestConfig(chunk_size=80, overlap=10, min_chars=5),
+        retrieval_config=RetrievalConfig(
+            lexical_weight=0.0,
+            keyword_weight=0.0,
+            semantic_weight=1.0,
+            rerank_boost=0.0,
+            use_semantic=True,
+        ),
+    )
+    rag._semantic_model = FakeSemanticModel()
+    rag.ingest_paths([docs])
+
+    hits = rag.retrieve("car guide", top_k=1)
+
+    assert hits
+    assert hits[0]["chunk"].doc_id.endswith("car.txt")
+    assert hits[0]["semantic_score"] > 0.9

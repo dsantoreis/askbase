@@ -70,6 +70,11 @@ class PingzResponse(BaseModel):
     timestamp_utc: str
 
 
+class TimezResponse(BaseModel):
+    server_time_utc: str
+    uptime_seconds: float
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -121,6 +126,9 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_pingz_requests_total Total number of /pingz requests.",
         "# TYPE rag_api_pingz_requests_total counter",
         f"rag_api_pingz_requests_total {state['pingz_requests_total']}",
+        "# HELP rag_api_timez_requests_total Total number of /timez requests.",
+        "# TYPE rag_api_timez_requests_total counter",
+        f"rag_api_timez_requests_total {state['timez_requests_total']}",
         "# HELP rag_api_ask_requests_total Total number of /ask requests.",
         "# TYPE rag_api_ask_requests_total counter",
         f"rag_api_ask_requests_total {state['ask_requests_total']}",
@@ -190,6 +198,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "health_requests_total": 0,
         "ready_requests_total": 0,
         "pingz_requests_total": 0,
+        "timez_requests_total": 0,
         "diag_requests_total": 0,
         "openapi_lite_requests_total": 0,
         "routes_hash_requests_total": 0,
@@ -238,6 +247,14 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             status="ok",
             latency_ms=latency_ms,
             timestamp_utc=datetime.now(tz=UTC).isoformat(),
+        )
+
+    @app.get("/timez", response_model=TimezResponse)
+    def timez() -> TimezResponse:
+        state["timez_requests_total"] += 1
+        return TimezResponse(
+            server_time_utc=datetime.now(tz=UTC).isoformat(),
+            uptime_seconds=time.monotonic() - state["started_at"],
         )
 
     @app.get("/readyz", response_model=ReadyResponse)
@@ -397,6 +414,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         counters = {
             "health": state["health_requests_total"],
             "pingz": state["pingz_requests_total"],
+            "timez": state["timez_requests_total"],
             "ready": state["ready_requests_total"],
             "ask": state["ask_requests_total"],
             "ingest": state["ingest_requests_total"],
