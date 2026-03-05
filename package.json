@@ -7,7 +7,9 @@
     "test": "vitest run",
     "build": "tsc -p tsconfig.json",
     "demo": "tsx src/demo.ts",
-    "dev": "npm run demo"
+    "dev": "npm run demo",
+    "test:unit": "./.venv/bin/python -m pytest tests/test_pipeline.py",
+    "test:persistence-smoke": "./.venv/bin/python -m pytest tests/test_pipeline.py -k persist_load"
   },
   "keywords": [],
   "author": "",
