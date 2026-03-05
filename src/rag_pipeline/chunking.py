@@ -70,6 +70,17 @@ def _paragraph_chunks(
             chunks.append(Chunk(doc_id=doc_id, text=current, start=start, end=end))
             start = max(0, end - overlap)
 
+        if len(part) > chunk_size:
+            oversized_chunks = _char_chunks(part, doc_id, chunk_size, overlap)
+            for chunk in oversized_chunks:
+                chunk.start += start
+                chunk.end += start
+            chunks.extend(oversized_chunks)
+            if oversized_chunks:
+                start = max(0, oversized_chunks[-1].end - overlap)
+            current = ""
+            continue
+
         current = part
 
     if current:
