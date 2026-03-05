@@ -177,6 +177,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     stats_before_ask_payload = stats_before_ask.json()
     assert stats_before_ask_payload["status"] == "ok"
     assert stats_before_ask_payload["uptime_seconds"] >= 0
+    assert stats_before_ask_payload["ask_latency_samples"] == 0
+    assert stats_before_ask_payload["ask_latency_avg_seconds"] == 0
     assert stats_before_ask_payload["counters"] == {
         "health": 1,
         "healthz_lite": 1,
@@ -235,6 +237,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask_payload["counters"]["ask"] == 2
     assert stats_after_ask_payload["counters"]["metrics"] == 2
     assert stats_after_ask_payload["counters"]["stats"] == 2
+    assert stats_after_ask_payload["ask_latency_samples"] == 2
+    assert stats_after_ask_payload["ask_latency_avg_seconds"] >= 0
     assert stats_after_ask_payload["requests_total"] == 24
 
 
@@ -362,6 +366,8 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     stats = client.get("/stats")
     assert stats.status_code == 200
     stats_payload = stats.json()
+    assert stats_payload["ask_latency_samples"] == 0
+    assert stats_payload["ask_latency_avg_seconds"] == 0
     assert stats_payload["counters"] == {
         "health": 0,
         "healthz_lite": 0,
@@ -436,6 +442,8 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert stats_payload["counters"]["ingest_errors"] == 0
     assert stats_payload["counters"]["ask"] == 2
     assert stats_payload["counters"]["ask_errors"] == 0
+    assert stats_payload["ask_latency_samples"] == 2
+    assert stats_payload["ask_latency_avg_seconds"] >= 0
 
 
 def test_cli_ingest_passes_semantic_flags(monkeypatch, tmp_path: Path):

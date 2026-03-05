@@ -160,6 +160,8 @@ class StatsResponse(BaseModel):
     status: str
     uptime_seconds: float
     requests_total: int
+    ask_latency_avg_seconds: float
+    ask_latency_samples: int
     counters: dict[str, int]
 
 
@@ -586,6 +588,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     @app.get("/stats", response_model=StatsResponse)
     def stats() -> StatsResponse:
         state["stats_requests_total"] += 1
+        latency_samples = state["ask_latency_seconds"]
+        ask_latency_avg_seconds = (
+            sum(latency_samples) / len(latency_samples) if latency_samples else 0.0
+        )
+
         counters = {
             "health": state["health_requests_total"],
             "healthz_lite": state["healthz_lite_requests_total"],
@@ -615,6 +622,8 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             status="ok",
             uptime_seconds=time.monotonic() - state["started_at"],
             requests_total=sum(counters.values()),
+            ask_latency_avg_seconds=ask_latency_avg_seconds,
+            ask_latency_samples=len(latency_samples),
             counters=counters,
         )
 
