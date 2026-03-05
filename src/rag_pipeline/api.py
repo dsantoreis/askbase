@@ -75,6 +75,11 @@ class TimezResponse(BaseModel):
     uptime_seconds: float
 
 
+class HealthzLiteResponse(BaseModel):
+    status: str
+    uptime_seconds: float
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -237,6 +242,13 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "index_loaded": state["rag"] is not None,
             "index_path": str(state["index_path"]),
         }
+
+    @app.get("/healthz-lite", response_model=HealthzLiteResponse)
+    def healthz_lite() -> HealthzLiteResponse:
+        return HealthzLiteResponse(
+            status="ok",
+            uptime_seconds=time.monotonic() - state["started_at"],
+        )
 
     @app.get("/pingz", response_model=PingzResponse)
     def pingz() -> PingzResponse:

@@ -32,6 +32,12 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert health_payload["status"] == "ok"
     assert health_payload["index_loaded"] is True
 
+    healthz_lite = client.get("/healthz-lite")
+    assert healthz_lite.status_code == 200
+    healthz_lite_payload = healthz_lite.json()
+    assert healthz_lite_payload["status"] == "ok"
+    assert healthz_lite_payload["uptime_seconds"] >= 0
+
     pingz = client.get("/pingz")
     assert pingz.status_code == 200
     pingz_payload = pingz.json()
@@ -98,6 +104,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         item["path"]: set(item["methods"]) for item in openapi_lite_payload["routes"]
     }
     assert routes["/health"] == {"GET"}
+    assert routes["/healthz-lite"] == {"GET"}
     assert routes["/pingz"] == {"GET"}
     assert routes["/timez"] == {"GET"}
     assert routes["/statusz"] == {"GET"}

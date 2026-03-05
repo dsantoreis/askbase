@@ -27,7 +27,7 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
   - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/pingz`, `/timez`, `/readyz`, `/statusz`, `/version`, `/build-info`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
+  - API FastAPI: `/health`, `/healthz-lite`, `/pingz`, `/timez`, `/readyz`, `/statusz`, `/version`, `/build-info`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -110,6 +110,7 @@ python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 
 
 Endpoints:
 - `GET /health`
+- `GET /healthz-lite` (status + uptime_seconds; health compacto para probes leves)
 - `GET /pingz`
 - `GET /timez` (timestamp UTC do servidor + uptime_seconds)
 - `GET /readyz`
@@ -136,47 +137,51 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + pingz + timez + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
+### Runbook rápido (health + healthz-lite + pingz + timez + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
 
 ```bash
 # 1) Health check
 curl -s http://127.0.0.1:8080/health | jq .
 
-# 2) Ping de latência + timestamp UTC
+# 2) Health compacto (status + uptime_seconds)
+curl -s http://127.0.0.1:8080/healthz-lite | jq .
+
+# 3) Ping de latência + timestamp UTC
 curl -s http://127.0.0.1:8080/pingz | jq .
 
-# 3) Hora do servidor UTC + uptime
+# 4) Hora do servidor UTC + uptime
 curl -s http://127.0.0.1:8080/timez | jq .
 
-# 4) Readiness (índice carregado + artefatos acessíveis)
+# 5) Readiness (índice carregado + artefatos acessíveis)
 curl -s http://127.0.0.1:8080/readyz | jq .
 
-# 5) Status compacto (ready + uptime_seconds + app_version)
+# 6) Status compacto (ready + uptime_seconds + app_version)
 curl -s http://127.0.0.1:8080/statusz | jq .
 
-# 6) Versão e index ativo
+# 7) Versão e index ativo
 curl -s http://127.0.0.1:8080/version | jq .
 
-# 7) Build info (versão + index + started_at)
+# 8) Build info (versão + index + started_at)
 curl -s http://127.0.0.1:8080/build-info | jq .
 
-# 8) Diagnóstico seguro (somente metadados de índice/artefatos)
+# 9) Diagnóstico seguro (somente metadados de índice/artefatos)
 curl -s http://127.0.0.1:8080/diag | jq .
 
-# 9) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
+# 10) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
 curl -s http://127.0.0.1:8080/openapi-lite | jq .
 
-# 10) Hash estável das rotas expostas (schema-lite)
+# 11) Hash estável das rotas expostas (schema-lite)
 curl -s http://127.0.0.1:8080/routes-hash | jq .
 
-# 11) Estatísticas agregadas de API (counters + uptime)
+# 12) Estatísticas agregadas de API (counters + uptime)
 curl -s http://127.0.0.1:8080/stats | jq .
 
-# 12) Métricas estilo Prometheus
+# 13) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 13) Sanidade fim-a-fim (health + pingz + timez + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
+# 14) Sanidade fim-a-fim (health + healthz-lite + pingz + timez + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
+curl -s http://127.0.0.1:8080/healthz-lite | jq .uptime_seconds
 curl -s http://127.0.0.1:8080/pingz | jq .status
 curl -s http://127.0.0.1:8080/timez | jq .server_time_utc
 curl -s http://127.0.0.1:8080/readyz | jq .status
@@ -256,7 +261,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /pingz` + `GET /timez` + `GET /readyz` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /healthz-lite` + `GET /pingz` + `GET /timez` + `GET /readyz` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---
