@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import pickle
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -359,11 +360,7 @@ class RAGPipeline:
 
 
 def _normalize_terms(text: str) -> list[str]:
-    return [
-        token.strip(".,:;!?()[]{}\"'").lower()
-        for token in text.split()
-        if token.strip()
-    ]
+    return re.findall(r"[\wÀ-ÖØ-öø-ÿ]+", text.lower())
 
 
 def citations_to_dict(citations: list[Citation]) -> list[dict[str, Any]]:

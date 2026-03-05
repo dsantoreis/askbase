@@ -188,6 +188,16 @@ def test_retrieve_returns_matched_terms(sample_docs: list[Path]):
     assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
 
 
+def test_retrieve_normalizes_hyphenated_query_terms(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    hits = rag.retrieve("audit-evidence retention", top_k=1)
+
+    assert hits
+    assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
+
+
 def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path):
     index = tmp_path / "idx.pkl"
     eval_data = tmp_path / "eval.jsonl"
