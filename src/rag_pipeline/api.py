@@ -60,6 +60,7 @@ class AskResponse(BaseModel):
 class IngestRequest(BaseModel):
     text: str = Field(min_length=1)
     doc_id: str = Field(default="api:document", min_length=1)
+    replace_existing: bool = True
 
     @field_validator("text")
     @classmethod
@@ -666,7 +667,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             state["ingest_errors_total"] += 1
             raise HTTPException(status_code=400, detail="document has no valid content")
 
-        rag.chunks = [c for c in rag.chunks if c.doc_id != req.doc_id] + chunks
+        if req.replace_existing:
+            rag.chunks = [c for c in rag.chunks if c.doc_id != req.doc_id] + chunks
+        else:
+            rag.chunks.extend(chunks)
+
         texts = [c.text for c in rag.chunks]
         rag._matrix = rag.vectorizer.fit_transform(texts) if texts else None
         rag._semantic_embeddings = rag._encode_semantic_texts(texts)

@@ -492,6 +492,45 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert stats_payload["ask_latency_avg_seconds"] >= 0
 
 
+def test_api_ingest_supports_append_mode(tmp_path: Path):
+    index = tmp_path / "api_ingest_append.pkl"
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    first_ingest = client.post(
+        "/ingest",
+        json={
+            "doc_id": "runbook:mfa",
+            "text": "Runbook: first version for MFA reset workflow.",
+        },
+    )
+    assert first_ingest.status_code == 200
+
+    second_ingest = client.post(
+        "/ingest",
+        json={
+            "doc_id": "runbook:mfa",
+            "text": "Runbook: second version adds identity verification checklist.",
+            "replace_existing": False,
+        },
+    )
+    assert second_ingest.status_code == 200
+
+    diag = client.get("/diag-lite")
+    assert diag.status_code == 200
+    diag_payload = diag.json()
+    assert diag_payload["index_snapshot"]["chunks_count"] >= 2
+
+    ask = client.post(
+        "/ask",
+        json={"query": "What changed in MFA workflow?", "doc_id": "runbook:mfa"},
+    )
+    assert ask.status_code == 200
+    ask_payload = ask.json()
+    assert len(ask_payload["citations"]) >= 1
+    assert all(c["doc_id"] == "runbook:mfa" for c in ask_payload["citations"])
+
+
 def test_cli_ingest_passes_semantic_flags(monkeypatch, tmp_path: Path):
     from rag_pipeline import cli as cli_module
 
