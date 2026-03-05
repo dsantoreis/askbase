@@ -337,6 +337,22 @@ def test_api_rejects_too_long_doc_filter_with_422(tmp_path: Path):
     assert res.status_code == 422
 
 
+def test_api_rejects_non_finite_min_score_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post("/ask", json={"query": "MFA", "min_score": "inf"})
+    assert res.status_code == 422
+
+
 def test_api_limits_endpoint_reports_contract(tmp_path: Path):
     doc = tmp_path / "kb.txt"
     doc.write_text("MFA reset runbook.", encoding="utf-8")
@@ -793,6 +809,29 @@ def test_cli_rejects_negative_min_score(tmp_path: Path):
 
     assert ask.returncode != 0
     assert "must be >= 0" in ask.stderr
+
+
+def test_cli_rejects_non_finite_min_score(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--min-score",
+            "inf",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must be finite" in ask.stderr
 
 
 def test_cli_rejects_blank_query(tmp_path: Path):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import time
 from datetime import UTC, datetime
@@ -54,6 +55,13 @@ class AskRequest(BaseModel):
         if not normalized:
             raise ValueError("doc_id must not be blank")
         return normalized
+
+    @field_validator("min_score")
+    @classmethod
+    def validate_min_score_is_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("min_score must be finite")
+        return value
 
     @field_validator("doc_id_contains")
     @classmethod

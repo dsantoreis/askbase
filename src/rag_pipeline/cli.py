@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import uvicorn
@@ -20,6 +21,8 @@ def _positive_int(value: str) -> int:
 
 def _non_negative_float(value: str) -> float:
     parsed = float(value)
+    if not math.isfinite(parsed):
+        raise argparse.ArgumentTypeError("must be finite")
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be >= 0")
     return parsed
