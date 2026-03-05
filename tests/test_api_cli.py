@@ -183,7 +183,9 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "timez": 1,
         "ready": 1,
         "ask": 0,
+        "ask_errors": 0,
         "ingest": 0,
+        "ingest_errors": 0,
         "diag": 1,
         "diag_lite": 1,
         "openapi_lite": 1,
@@ -351,13 +353,15 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "timez": 0,
         "ready": 1,
         "ask": 1,
+        "ask_errors": 1,
         "ingest": 0,
+        "ingest_errors": 0,
         "diag": 1,
         "diag_lite": 1,
         "openapi_lite": 0,
         "routes_hash": 0,
     }
-    assert stats_payload["requests_total"] == 4
+    assert stats_payload["requests_total"] == 5
 
 
 def test_api_ingest_then_ask(tmp_path: Path):
@@ -403,7 +407,9 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert stats.status_code == 200
     stats_payload = stats.json()
     assert stats_payload["counters"]["ingest"] == 1
+    assert stats_payload["counters"]["ingest_errors"] == 0
     assert stats_payload["counters"]["ask"] == 2
+    assert stats_payload["counters"]["ask_errors"] == 0
 
 
 def test_cli_ingest_passes_semantic_flags(monkeypatch, tmp_path: Path):
