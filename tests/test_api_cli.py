@@ -65,6 +65,14 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert build_info_payload["started_at"]
     assert datetime.fromisoformat(build_info_payload["started_at"]) is not None
 
+    build_lite = client.get("/build-lite")
+    assert build_lite.status_code == 200
+    build_lite_payload = build_lite.json()
+    assert build_lite_payload["app_version"] == "1.2.0"
+    assert build_lite_payload["started_at"] == build_info_payload["started_at"]
+    assert datetime.fromisoformat(build_lite_payload["started_at"]) is not None
+    assert "index_path" not in build_lite_payload
+
     diag = client.get("/diag")
     assert diag.status_code == 200
     diag_payload = diag.json()
@@ -123,6 +131,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/readyz-lite"] == {"GET"}
     assert routes["/statusz"] == {"GET"}
     assert routes["/meta-lite"] == {"GET"}
+    assert routes["/build-lite"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
@@ -214,6 +223,12 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     assert meta_lite_payload["app_name"] == "RAG Pipeline Demo API"
     assert meta_lite_payload["app_version"] == "1.2.0"
     assert meta_lite_payload["uptime_seconds"] >= 0
+
+    build_lite = client.get("/build-lite")
+    assert build_lite.status_code == 200
+    build_lite_payload = build_lite.json()
+    assert build_lite_payload["app_version"] == "1.2.0"
+    assert datetime.fromisoformat(build_lite_payload["started_at"]) is not None
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400

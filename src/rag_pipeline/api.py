@@ -47,6 +47,11 @@ class BuildInfoResponse(BaseModel):
     started_at: str
 
 
+class BuildLiteResponse(BaseModel):
+    app_version: str
+    started_at: str
+
+
 class ReadyResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -348,6 +353,13 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return BuildInfoResponse(
             app_version=app.version,
             index_path=str(state["index_path"]),
+            started_at=state["started_at_iso"],
+        )
+
+    @app.get("/build-lite", response_model=BuildLiteResponse)
+    def build_lite() -> BuildLiteResponse:
+        return BuildLiteResponse(
+            app_version=app.version,
             started_at=state["started_at_iso"],
         )
 
