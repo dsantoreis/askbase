@@ -81,11 +81,14 @@ def test_persist_load_and_eval(sample_docs: list[Path], tmp_path: Path):
     assert report["metric"] == "precision@2"
     assert report["samples"] == 2
     assert 0.0 <= report["value"] <= 1.0
+    assert report["recall_metric"] == "recall@2"
+    assert 0.0 <= report["recall_value"] <= 1.0
     assert len(report["details"]) == 2
     first_detail = report["details"][0]
     assert "predicted_doc_ids" in first_detail
     assert "relevant_doc_ids" in first_detail
     assert "correct_hits" in first_detail
+    assert "recall" in first_detail
     assert first_detail["hits"] == first_detail["predicted_doc_ids"]
 
 

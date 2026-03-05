@@ -245,6 +245,7 @@ class RAGPipeline:
             raise ValueError("evaluation dataset is empty")
 
         scores: list[float] = []
+        recalls: list[float] = []
         details: list[dict[str, Any]] = []
 
         for item in entries:
@@ -254,11 +255,14 @@ class RAGPipeline:
             predicted = [h["chunk"].doc_id for h in hits]
             correct = sum(1 for doc_id in predicted if doc_id in relevant_doc_ids)
             precision = correct / max(k, 1)
+            recall = correct / max(len(relevant_doc_ids), 1)
             scores.append(precision)
+            recalls.append(recall)
             details.append(
                 {
                     "query": query,
                     "precision": precision,
+                    "recall": recall,
                     "hits": predicted,
                     "predicted_doc_ids": predicted,
                     "relevant_doc_ids": sorted(relevant_doc_ids),
@@ -269,6 +273,8 @@ class RAGPipeline:
         return {
             "metric": f"precision@{k}",
             "value": sum(scores) / len(scores),
+            "recall_metric": f"recall@{k}",
+            "recall_value": sum(recalls) / len(recalls),
             "samples": len(scores),
             "details": details,
         }
