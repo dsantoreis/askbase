@@ -52,7 +52,15 @@ class AnswerResult:
 
 
 class RAGPipeline:
-    SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".mdx", ".rst"}
+    SUPPORTED_EXTENSIONS = {
+        ".txt",
+        ".text",
+        ".log",
+        ".md",
+        ".markdown",
+        ".mdx",
+        ".rst",
+    }
     INDEX_VERSION = "2.2"
 
     def __init__(
@@ -398,7 +406,8 @@ def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
                     "invalid evaluation row: relevant_doc_ids must be a non-empty list"
                 )
             if not all(
-                isinstance(doc_id, str) and doc_id.strip() for doc_id in relevant_doc_ids
+                isinstance(doc_id, str) and doc_id.strip()
+                for doc_id in relevant_doc_ids
             ):
                 raise ValueError(
                     "invalid evaluation row: relevant_doc_ids entries must be non-blank strings"

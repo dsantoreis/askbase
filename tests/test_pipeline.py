@@ -106,7 +106,10 @@ def test_deduplicate_same_content(tmp_path: Path):
     assert len({c.doc_id for c in rag.chunks}) == 1
 
 
-@pytest.mark.parametrize("filename", ["guide.markdown", "guide.mdx", "guide.rst"])
+@pytest.mark.parametrize(
+    "filename",
+    ["guide.markdown", "guide.mdx", "guide.rst", "service.log", "notes.text"],
+)
 def test_ingest_supports_text_extensions(tmp_path: Path, filename: str):
     doc = tmp_path / filename
     doc.write_text(
