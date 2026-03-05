@@ -27,7 +27,7 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
   - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/ask` (resposta com citations)
+  - API FastAPI: `/health`, `/version`, `/ask` (resposta com citations)
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -108,6 +108,7 @@ python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 
 
 Endpoints:
 - `GET /health`
+- `GET /version`
 - `GET /metrics`
 - `POST /ingest`
 - `POST /ask`
@@ -124,17 +125,21 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + metrics)
+### Runbook rápido (health + version + metrics)
 
 ```bash
 # 1) Health check
 curl -s http://127.0.0.1:8080/health | jq .
 
-# 2) Métricas estilo Prometheus
+# 2) Versão e index ativo
+curl -s http://127.0.0.1:8080/version | jq .
+
+# 3) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 3) Sanidade fim-a-fim (health + ask + metrics)
+# 4) Sanidade fim-a-fim (health + version + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
+curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query":"How solve VPN issues?","top_k":2}' | jq .answer
@@ -204,7 +209,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /version` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---

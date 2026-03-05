@@ -30,6 +30,12 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert health_payload["status"] == "ok"
     assert health_payload["index_loaded"] is True
 
+    version = client.get("/version")
+    assert version.status_code == 200
+    version_payload = version.json()
+    assert version_payload["app_version"] == "1.2.0"
+    assert version_payload["index_path"] == str(index)
+
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text

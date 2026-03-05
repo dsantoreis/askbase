@@ -30,6 +30,11 @@ class IngestResponse(BaseModel):
     index_path: str
 
 
+class VersionResponse(BaseModel):
+    app_version: str
+    index_path: str
+
+
 def _render_metrics(state: dict) -> str:
     uptime_seconds = time.monotonic() - state["started_at"]
     index_loaded = 1 if state["rag"] is not None else 0
@@ -99,6 +104,13 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "index_loaded": state["rag"] is not None,
             "index_path": str(state["index_path"]),
         }
+
+    @app.get("/version", response_model=VersionResponse)
+    def version() -> VersionResponse:
+        return VersionResponse(
+            app_version=app.version,
+            index_path=str(state["index_path"]),
+        )
 
     @app.get("/metrics")
     def metrics() -> Response:
