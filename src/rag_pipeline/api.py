@@ -50,6 +50,22 @@ class IngestRequest(BaseModel):
     text: str = Field(min_length=1)
     doc_id: str = Field(default="api:document", min_length=1)
 
+    @field_validator("text")
+    @classmethod
+    def validate_text_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("text must not be blank")
+        return normalized
+
+    @field_validator("doc_id")
+    @classmethod
+    def validate_doc_id_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("doc_id must not be blank")
+        return normalized
+
 
 class IngestResponse(BaseModel):
     chunks_indexed: int

@@ -263,6 +263,22 @@ def test_api_rejects_blank_doc_id_contains_with_422(tmp_path: Path):
     assert res.status_code == 422
 
 
+def test_api_rejects_blank_ingest_text_with_422(tmp_path: Path):
+    app = create_app(str(tmp_path / "missing.pkl"))
+    client = TestClient(app)
+
+    res = client.post("/ingest", json={"doc_id": "runbook:mfa", "text": "   "})
+    assert res.status_code == 422
+
+
+def test_api_rejects_blank_ingest_doc_id_with_422(tmp_path: Path):
+    app = create_app(str(tmp_path / "missing.pkl"))
+    client = TestClient(app)
+
+    res = client.post("/ingest", json={"doc_id": "   ", "text": "MFA reset steps"})
+    assert res.status_code == 422
+
+
 def test_api_ask_without_index_returns_400(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)
