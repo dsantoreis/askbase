@@ -195,6 +195,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "meta_lite": 1,
         "ask": 0,
         "ask_errors": 0,
+        "ask_safe": 0,
+        "ask_safe_errors": 0,
         "ingest": 0,
         "ingest_errors": 0,
         "diag": 1,
@@ -213,6 +215,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
     assert "rag_api_version_requests_total 1" in metrics.text
+    assert "rag_api_ask_safe_requests_total 0" in metrics.text
     assert "rag_api_metrics_requests_total 1" in metrics.text
 
     res = client.post("/ask", json={"query": "How solve VPN issues?", "top_k": 2})
@@ -241,6 +244,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 2
+    assert stats_after_ask_payload["counters"]["ask_safe"] == 0
+    assert stats_after_ask_payload["counters"]["ask_safe_errors"] == 0
     assert stats_after_ask_payload["counters"]["metrics"] == 2
     assert stats_after_ask_payload["counters"]["stats"] == 2
     assert stats_after_ask_payload["ask_latency_samples"] == 2
@@ -305,6 +310,12 @@ def test_api_ask_safe_requires_citations(tmp_path: Path):
     assert matched.status_code == 200
     matched_payload = matched.json()
     assert matched_payload["citations"]
+
+    stats = client.get("/stats")
+    assert stats.status_code == 200
+    stats_payload = stats.json()
+    assert stats_payload["counters"]["ask_safe"] == 2
+    assert stats_payload["counters"]["ask_safe_errors"] == 1
 
 
 def test_api_rejects_blank_doc_id_with_422(tmp_path: Path):
@@ -482,6 +493,8 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "meta_lite": 1,
         "ask": 1,
         "ask_errors": 1,
+        "ask_safe": 0,
+        "ask_safe_errors": 0,
         "ingest": 0,
         "ingest_errors": 0,
         "diag": 1,

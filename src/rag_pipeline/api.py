@@ -233,6 +233,12 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_ask_errors_total Total number of /ask requests failed.",
         "# TYPE rag_api_ask_errors_total counter",
         f"rag_api_ask_errors_total {state['ask_errors_total']}",
+        "# HELP rag_api_ask_safe_requests_total Total number of /ask-safe requests.",
+        "# TYPE rag_api_ask_safe_requests_total counter",
+        f"rag_api_ask_safe_requests_total {state['ask_safe_requests_total']}",
+        "# HELP rag_api_ask_safe_errors_total Total number of /ask-safe requests failed.",
+        "# TYPE rag_api_ask_safe_errors_total counter",
+        f"rag_api_ask_safe_errors_total {state['ask_safe_errors_total']}",
         "# HELP rag_api_ingest_requests_total Total number of /ingest requests.",
         "# TYPE rag_api_ingest_requests_total counter",
         f"rag_api_ingest_requests_total {state['ingest_requests_total']}",
@@ -346,6 +352,8 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "stats_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
+        "ask_safe_requests_total": 0,
+        "ask_safe_errors_total": 0,
         "ask_latency_seconds": [],
         "ingest_latency_seconds": [],
         "ingest_requests_total": 0,
@@ -656,6 +664,8 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "meta_lite": state["meta_lite_requests_total"],
             "ask": state["ask_requests_total"],
             "ask_errors": state["ask_errors_total"],
+            "ask_safe": state["ask_safe_requests_total"],
+            "ask_safe_errors": state["ask_safe_errors_total"],
             "ingest": state["ingest_requests_total"],
             "ingest_errors": state["ingest_errors_total"],
             "diag": state["diag_requests_total"],
@@ -750,8 +760,10 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.post("/ask-safe", response_model=AskResponse)
     def ask_safe(req: AskRequest) -> AskResponse:
+        state["ask_safe_requests_total"] += 1
         response = ask(req)
         if not response.citations:
+            state["ask_safe_errors_total"] += 1
             raise HTTPException(
                 status_code=404,
                 detail=(
