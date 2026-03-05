@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -81,6 +82,18 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
 
+    routes_hash = client.get("/routes-hash")
+    assert routes_hash.status_code == 200
+    routes_hash_payload = routes_hash.json()
+    assert routes_hash_payload["status"] == "ok"
+    assert routes_hash_payload["algorithm"] == "sha256"
+    assert routes_hash_payload["routes_count"] == len(openapi_lite_payload["routes"])
+    assert re.fullmatch(r"[0-9a-f]{64}", routes_hash_payload["routes_hash"]) is not None
+
+    routes_hash_again = client.get("/routes-hash")
+    assert routes_hash_again.status_code == 200
+    assert routes_hash_again.json()["routes_hash"] == routes_hash_payload["routes_hash"]
+
     stats_before_ask = client.get("/stats")
     assert stats_before_ask.status_code == 200
     stats_before_ask_payload = stats_before_ask.json()
@@ -93,8 +106,9 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "ingest": 0,
         "diag": 1,
         "openapi_lite": 1,
+        "routes_hash": 2,
     }
-    assert stats_before_ask_payload["requests_total"] == 4
+    assert stats_before_ask_payload["requests_total"] == 6
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -114,7 +128,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 1
-    assert stats_after_ask_payload["requests_total"] == 5
+    assert stats_after_ask_payload["requests_total"] == 7
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -147,6 +161,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "ingest": 0,
         "diag": 1,
         "openapi_lite": 0,
+        "routes_hash": 0,
     }
     assert stats_payload["requests_total"] == 3
 

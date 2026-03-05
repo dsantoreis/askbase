@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
 from datetime import UTC, datetime
@@ -83,6 +85,13 @@ class OpenApiLiteResponse(BaseModel):
     routes: list[OpenApiLiteRoute]
 
 
+class RoutesHashResponse(BaseModel):
+    status: str
+    algorithm: str
+    routes_hash: str
+    routes_count: int
+
+
 def _render_metrics(state: dict) -> str:
     uptime_seconds = time.monotonic() - state["started_at"]
     index_loaded = 1 if state["rag"] is not None else 0
@@ -142,6 +151,19 @@ def _safe_route_summary(app: FastAPI) -> list[OpenApiLiteRoute]:
     return sorted(routes, key=lambda item: item.path)
 
 
+def _stable_routes_hash(routes: list[OpenApiLiteRoute]) -> str:
+    canonical_routes = [
+        {"path": route.path, "methods": sorted(route.methods)} for route in routes
+    ]
+    payload = json.dumps(
+        canonical_routes,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     app = FastAPI(title="RAG Pipeline Demo API", version="1.2.0")
     index = Path(index_path)
@@ -154,6 +176,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "ready_requests_total": 0,
         "diag_requests_total": 0,
         "openapi_lite_requests_total": 0,
+        "routes_hash_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_latency_seconds": [],
@@ -302,6 +325,17 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             routes=_safe_route_summary(app),
         )
 
+    @app.get("/routes-hash", response_model=RoutesHashResponse)
+    def routes_hash() -> RoutesHashResponse:
+        state["routes_hash_requests_total"] += 1
+        routes = _safe_route_summary(app)
+        return RoutesHashResponse(
+            status="ok",
+            algorithm="sha256",
+            routes_hash=_stable_routes_hash(routes),
+            routes_count=len(routes),
+        )
+
     @app.get("/metrics")
     def metrics() -> Response:
         return Response(
@@ -318,6 +352,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "ingest": state["ingest_requests_total"],
             "diag": state["diag_requests_total"],
             "openapi_lite": state["openapi_lite_requests_total"],
+            "routes_hash": state["routes_hash_requests_total"],
         }
         return StatsResponse(
             status="ok",
