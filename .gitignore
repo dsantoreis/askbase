@@ -4,3 +4,6 @@ dist/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+rag_index.pkl
+src/*.egg-info/
