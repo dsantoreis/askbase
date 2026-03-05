@@ -106,6 +106,37 @@ def test_deduplicate_same_content(tmp_path: Path):
     assert len({c.doc_id for c in rag.chunks}) == 1
 
 
+def test_retrieve_rejects_non_positive_top_k(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="top_k must be >= 1"):
+        rag.retrieve("any query", top_k=0)
+
+
+def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path):
+    index = tmp_path / "idx.pkl"
+    eval_data = tmp_path / "eval.jsonl"
+
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
+    rag.ingest_paths(sample_docs)
+    rag.save(index)
+
+    eval_data.write_text(
+        json.dumps(
+            {
+                "query": "Where to store audit evidence?",
+                "relevant_doc_ids": [str(sample_docs[0])],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = RAGPipeline.load(index)
+    with pytest.raises(ValueError, match="k must be >= 1"):
+        loaded.evaluate_precision_at_k(eval_data, k=0)
+
+
 def test_semantic_retrieval_can_drive_ranking(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()

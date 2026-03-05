@@ -324,6 +324,76 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert stats_payload["counters"]["ask"] == 1
 
 
+def test_cli_ingest_passes_semantic_flags(monkeypatch, tmp_path: Path):
+    from rag_pipeline import cli as cli_module
+
+    captured: dict[str, object] = {}
+
+    class DummyRAGPipeline:
+        def __init__(self, ingest_config, retrieval_config):
+            captured["ingest_config"] = ingest_config
+            captured["retrieval_config"] = retrieval_config
+
+        def ingest_paths(self, paths):
+            captured["paths"] = paths
+            return 1
+
+        def save(self, index):
+            captured["index"] = index
+
+    monkeypatch.setattr(cli_module, "RAGPipeline", DummyRAGPipeline)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "rag_pipeline.cli",
+            "ingest",
+            str(tmp_path),
+            "--index",
+            str(tmp_path / "semantic.pkl"),
+            "--use-semantic",
+            "--semantic-weight",
+            "0.35",
+            "--semantic-model",
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        ],
+    )
+
+    cli_module.main()
+
+    retrieval = captured["retrieval_config"]
+    assert retrieval.use_semantic is True
+    assert retrieval.semantic_weight == 0.35
+    assert (
+        retrieval.semantic_model
+        == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+    assert captured["paths"] == [str(tmp_path)]
+
+
+def test_cli_rejects_non_positive_top_k(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "0",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must be >= 1" in ask.stderr
+
+
 def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()

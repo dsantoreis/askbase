@@ -11,6 +11,13 @@ from .logging_utils import configure_logging
 from .pipeline import IngestConfig, RAGPipeline, RetrievalConfig, citations_to_dict
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return parsed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Enterprise-ready local RAG pipeline")
     parser.add_argument("--log-level", default="INFO")
@@ -26,17 +33,22 @@ def main() -> None:
     )
     ingest.add_argument("--max-file-mb", type=int, default=5)
     ingest.add_argument("--min-chars", type=int, default=30)
+    ingest.add_argument("--use-semantic", action="store_true")
+    ingest.add_argument("--semantic-weight", type=float, default=0.0)
+    ingest.add_argument(
+        "--semantic-model", default="sentence-transformers/all-MiniLM-L6-v2"
+    )
 
     ask = sub.add_parser("ask")
     ask.add_argument("query")
     ask.add_argument("--index", default="rag_index.pkl")
-    ask.add_argument("--top-k", type=int, default=3)
+    ask.add_argument("--top-k", type=_positive_int, default=3)
     ask.add_argument("--json", action="store_true")
 
     evaluate = sub.add_parser("evaluate")
     evaluate.add_argument("--index", default="rag_index.pkl")
     evaluate.add_argument("--dataset", required=True)
-    evaluate.add_argument("--k", type=int, default=3)
+    evaluate.add_argument("--k", type=_positive_int, default=3)
 
     serve = sub.add_parser("serve")
     serve.add_argument("--index", default="rag_index.pkl")
@@ -55,7 +67,11 @@ def main() -> None:
                 max_file_mb=args.max_file_mb,
                 min_chars=args.min_chars,
             ),
-            retrieval_config=RetrievalConfig(),
+            retrieval_config=RetrievalConfig(
+                semantic_weight=args.semantic_weight,
+                use_semantic=args.use_semantic,
+                semantic_model=args.semantic_model,
+            ),
         )
         count = rag.ingest_paths(args.paths)
         rag.save(args.index)

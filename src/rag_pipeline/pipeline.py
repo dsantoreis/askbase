@@ -94,6 +94,8 @@ class RAGPipeline:
         return len(self.chunks)
 
     def retrieve(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+        if top_k < 1:
+            raise ValueError("top_k must be >= 1")
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
 
@@ -169,6 +171,8 @@ class RAGPipeline:
     def evaluate_precision_at_k(
         self, dataset_path: str | Path, k: int = 3
     ) -> dict[str, Any]:
+        if k < 1:
+            raise ValueError("k must be >= 1")
         entries = _load_eval_jsonl(Path(dataset_path))
         if not entries:
             raise ValueError("evaluation dataset is empty")
