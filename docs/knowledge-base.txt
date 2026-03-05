@@ -1,0 +1,3 @@
+RAG (Retrieval-Augmented Generation) combina recuperação de contexto com geração de resposta.
+Chunking divide documentos longos em pedaços menores para melhorar recall e precisão.
+Embeddings reais podem ser substituídos por tokenização simples em demos locais.
