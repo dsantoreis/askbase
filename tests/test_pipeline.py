@@ -148,6 +148,20 @@ def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
     assert filtered_hits == []
 
 
+def test_retrieve_can_filter_by_doc_id_fragment(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    hits = rag.retrieve(
+        "MFA identity verification",
+        top_k=3,
+        doc_id_contains="support",
+    )
+
+    assert hits
+    assert all("support" in hit["chunk"].doc_id.lower() for hit in hits)
+
+
 def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path):
     index = tmp_path / "idx.pkl"
     eval_data = tmp_path / "eval.jsonl"

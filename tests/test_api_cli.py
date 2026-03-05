@@ -326,11 +326,26 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert len(ask_payload["citations"]) >= 1
     assert ask_payload["citations"][0]["doc_id"] == "runbook:mfa"
 
+    ask_filtered = client.post(
+        "/ask",
+        json={
+            "query": "How to solve recurring MFA failures?",
+            "doc_id_contains": "runbook",
+        },
+    )
+    assert ask_filtered.status_code == 200
+    ask_filtered_payload = ask_filtered.json()
+    assert len(ask_filtered_payload["citations"]) >= 1
+    assert all(
+        "runbook" in citation["doc_id"].lower()
+        for citation in ask_filtered_payload["citations"]
+    )
+
     stats = client.get("/stats")
     assert stats.status_code == 200
     stats_payload = stats.json()
     assert stats_payload["counters"]["ingest"] == 1
-    assert stats_payload["counters"]["ask"] == 1
+    assert stats_payload["counters"]["ask"] == 2
 
 
 def test_cli_ingest_passes_semantic_flags(monkeypatch, tmp_path: Path):
@@ -501,3 +516,26 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     filtered_payload = json.loads(ask_filtered.stdout)
     assert filtered_payload["citations"] == []
     assert "Não encontrei contexto relevante" in filtered_payload["answer"]
+
+    ask_doc_filter = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "2",
+            "--doc-id-contains",
+            "ops",
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    doc_filter_payload = json.loads(ask_doc_filter.stdout)
+    assert len(doc_filter_payload["citations"]) >= 1
+    assert all("ops" in c["doc_id"].lower() for c in doc_filter_payload["citations"])

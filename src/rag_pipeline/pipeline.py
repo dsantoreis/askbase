@@ -94,12 +94,17 @@ class RAGPipeline:
         return len(self.chunks)
 
     def retrieve(
-        self, query: str, top_k: int = 3, min_score: float = 0.0
+        self,
+        query: str,
+        top_k: int = 3,
+        min_score: float = 0.0,
+        doc_id_contains: str | None = None,
     ) -> list[dict[str, Any]]:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
         if min_score < 0:
             raise ValueError("min_score must be >= 0")
+        normalized_doc_filter = doc_id_contains.strip().lower() if doc_id_contains else ""
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
 
@@ -110,6 +115,8 @@ class RAGPipeline:
 
         ranked: list[dict[str, Any]] = []
         for i, chunk in enumerate(self.chunks):
+            if normalized_doc_filter and normalized_doc_filter not in chunk.doc_id.lower():
+                continue
             chunk_terms = set(_normalize_terms(chunk.text))
             overlap = len(query_terms.intersection(chunk_terms))
             keyword_score = overlap / max(len(query_terms), 1)
@@ -142,9 +149,18 @@ class RAGPipeline:
         return ranked[:top_k]
 
     def answer_with_citations(
-        self, query: str, top_k: int = 3, min_score: float = 0.0
+        self,
+        query: str,
+        top_k: int = 3,
+        min_score: float = 0.0,
+        doc_id_contains: str | None = None,
     ) -> AnswerResult:
-        hits = self.retrieve(query, top_k=top_k, min_score=min_score)
+        hits = self.retrieve(
+            query,
+            top_k=top_k,
+            min_score=min_score,
+            doc_id_contains=doc_id_contains,
+        )
         if not hits:
             return AnswerResult(
                 answer="Não encontrei contexto relevante para responder.", citations=[]
@@ -171,9 +187,18 @@ class RAGPipeline:
         )
         return AnswerResult(answer=answer, citations=citations)
 
-    def answer(self, query: str, top_k: int = 3, min_score: float = 0.0) -> str:
+    def answer(
+        self,
+        query: str,
+        top_k: int = 3,
+        min_score: float = 0.0,
+        doc_id_contains: str | None = None,
+    ) -> str:
         return self.answer_with_citations(
-            query, top_k=top_k, min_score=min_score
+            query,
+            top_k=top_k,
+            min_score=min_score,
+            doc_id_contains=doc_id_contains,
         ).answer
 
     def evaluate_precision_at_k(
