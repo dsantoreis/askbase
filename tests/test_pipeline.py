@@ -149,6 +149,14 @@ def test_retrieve_rejects_negative_min_score(sample_docs: list[Path]):
         rag.retrieve("any query", min_score=-0.01)
 
 
+def test_retrieve_rejects_negative_min_term_matches(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="min_term_matches must be >= 0"):
+        rag.retrieve("audit evidence", min_term_matches=-1)
+
+
 def test_retrieve_rejects_doc_id_and_doc_id_contains_together(sample_docs: list[Path]):
     rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
     rag.ingest_paths(sample_docs)
@@ -224,6 +232,19 @@ def test_retrieve_returns_matched_terms(sample_docs: list[Path]):
 
     assert hits
     assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
+
+
+def test_retrieve_can_require_min_term_matches(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    strict_hits = rag.retrieve("audit evidence retention", top_k=3, min_term_matches=2)
+
+    assert strict_hits
+    assert all(len(hit["matched_terms"]) >= 2 for hit in strict_hits)
+
+    no_hits = rag.retrieve("audit evidence retention", top_k=3, min_term_matches=4)
+    assert no_hits == []
 
 
 def test_retrieve_returns_empty_for_punctuation_only_query(sample_docs: list[Path]):

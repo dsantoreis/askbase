@@ -109,11 +109,14 @@ class RAGPipeline:
         min_score: float = 0.0,
         doc_id: str | None = None,
         doc_id_contains: str | None = None,
+        min_term_matches: int = 0,
     ) -> list[dict[str, Any]]:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
         if min_score < 0:
             raise ValueError("min_score must be >= 0")
+        if min_term_matches < 0:
+            raise ValueError("min_term_matches must be >= 0")
         if doc_id is not None and not doc_id.strip():
             raise ValueError("doc_id must not be blank")
         if doc_id_contains is not None and not doc_id_contains.strip():
@@ -148,6 +151,8 @@ class RAGPipeline:
             chunk_terms = set(_normalize_terms(chunk.text))
             matched_terms = sorted(query_terms.intersection(chunk_terms))
             overlap = len(matched_terms)
+            if overlap < min_term_matches:
+                continue
             keyword_score = overlap / max(len(query_terms), 1)
             semantic_score = (
                 float(semantic_scores[i]) if semantic_scores is not None else 0.0
@@ -185,6 +190,7 @@ class RAGPipeline:
         min_score: float = 0.0,
         doc_id: str | None = None,
         doc_id_contains: str | None = None,
+        min_term_matches: int = 0,
     ) -> AnswerResult:
         hits = self.retrieve(
             query,
@@ -192,6 +198,7 @@ class RAGPipeline:
             min_score=min_score,
             doc_id=doc_id,
             doc_id_contains=doc_id_contains,
+            min_term_matches=min_term_matches,
         )
         if not hits:
             return AnswerResult(
@@ -226,6 +233,7 @@ class RAGPipeline:
         min_score: float = 0.0,
         doc_id: str | None = None,
         doc_id_contains: str | None = None,
+        min_term_matches: int = 0,
     ) -> str:
         return self.answer_with_citations(
             query,
@@ -233,6 +241,7 @@ class RAGPipeline:
             min_score=min_score,
             doc_id=doc_id,
             doc_id_contains=doc_id_contains,
+            min_term_matches=min_term_matches,
         ).answer
 
     def evaluate_precision_at_k(
