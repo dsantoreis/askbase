@@ -14,7 +14,6 @@ class Chunk:
     end: int
 
 
-
 def chunk_text(
     text: str,
     doc_id: str,
@@ -39,7 +38,6 @@ def chunk_text(
     raise ValueError(f"unsupported chunk strategy: {strategy}")
 
 
-
 def _char_chunks(text: str, doc_id: str, chunk_size: int, overlap: int) -> list[Chunk]:
     chunks: list[Chunk] = []
     step = chunk_size - overlap
@@ -53,8 +51,9 @@ def _char_chunks(text: str, doc_id: str, chunk_size: int, overlap: int) -> list[
     return chunks
 
 
-
-def _paragraph_chunks(text: str, doc_id: str, chunk_size: int, overlap: int) -> list[Chunk]:
+def _paragraph_chunks(
+    text: str, doc_id: str, chunk_size: int, overlap: int
+) -> list[Chunk]:
     parts = [p.strip() for p in text.split(". ") if p.strip()]
     chunks: list[Chunk] = []
     current = ""

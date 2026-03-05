@@ -26,7 +26,8 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
   - `precision@k` com dataset JSONL
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
-  - API FastAPI: `/health`, `/ask`
+  - `ask` retorna resposta + citations (doc_id, offsets, score)
+  - API FastAPI: `/health`, `/ask` (resposta com citations)
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -43,6 +44,19 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
+```
+
+## Execução rápida (happy path)
+
+```bash
+# 1) Ingestão de exemplo
+python -m rag_pipeline.cli ingest data --index artifacts/rag_index.pkl
+
+# 2) Query simples
+python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" --index artifacts/rag_index.pkl --top-k 3
+
+# 3) Gate de qualidade (format/lint/unit/smoke)
+npm run quality
 ```
 
 ## Uso CLI
@@ -65,6 +79,8 @@ python -m rag_pipeline.cli ingest data \
 python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" \
   --index artifacts/rag_index.pkl \
   --top-k 3
+
+# saída também lista citations com doc_id, intervalo e score
 ```
 
 ### 3) Avaliação offline (`precision@k`)
@@ -129,7 +145,14 @@ curl -X POST http://127.0.0.1:8080/ask \
 
 ---
 
-## Execução de testes
+## Qualidade e testes
+
+### Checklist único (recomendado)
+Roda **format check + lint + unit + smoke** em sequência.
+
+```bash
+npm run quality
+```
 
 ### Unit (pipeline completo)
 ```bash

@@ -9,7 +9,10 @@
     "demo": "tsx src/demo.ts",
     "dev": "npm run demo",
     "test:unit": "./.venv/bin/python -m pytest tests/test_pipeline.py",
-    "test:persistence-smoke": "./.venv/bin/python -m pytest tests/test_pipeline.py -k persist_load"
+    "test:persistence-smoke": "./.venv/bin/python -m pytest tests/test_pipeline.py -k persist_load",
+    "format:check": "./.venv/bin/python -m ruff format --check src tests",
+    "lint": "./.venv/bin/python -m ruff check src tests",
+    "quality": "bash ./scripts/quality-check.sh"
   },
   "keywords": [],
   "author": "",

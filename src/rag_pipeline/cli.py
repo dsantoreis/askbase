@@ -8,7 +8,7 @@ import uvicorn
 
 from .api import create_app
 from .logging_utils import configure_logging
-from .pipeline import IngestConfig, RAGPipeline, RetrievalConfig
+from .pipeline import IngestConfig, RAGPipeline, RetrievalConfig, citations_to_dict
 
 
 def main() -> None:
@@ -21,7 +21,9 @@ def main() -> None:
     ingest.add_argument("--index", default="rag_index.pkl")
     ingest.add_argument("--chunk-size", type=int, default=500)
     ingest.add_argument("--overlap", type=int, default=100)
-    ingest.add_argument("--chunk-strategy", choices=["char", "paragraph"], default="char")
+    ingest.add_argument(
+        "--chunk-strategy", choices=["char", "paragraph"], default="char"
+    )
     ingest.add_argument("--max-file-mb", type=int, default=5)
     ingest.add_argument("--min-chars", type=int, default=30)
 
@@ -65,11 +67,27 @@ def main() -> None:
         if not index.exists():
             raise SystemExit(f"Index not found: {index}. Run ingest first.")
         rag = RAGPipeline.load(index)
-        answer = rag.answer(args.query, top_k=args.top_k)
+        result = rag.answer_with_citations(args.query, top_k=args.top_k)
         if args.json:
-            print(json.dumps({"query": args.query, "answer": answer}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "query": args.query,
+                        "answer": result.answer,
+                        "citations": citations_to_dict(result.citations),
+                    },
+                    ensure_ascii=False,
+                )
+            )
         else:
-            print(answer)
+            print(result.answer)
+            if result.citations:
+                print("\nCitations:")
+                for i, citation in enumerate(result.citations, start=1):
+                    print(
+                        f"[{i}] {citation.doc_id}:{citation.chunk_start}-{citation.chunk_end} "
+                        f"score={citation.score:.4f}"
+                    )
         return
 
     if args.command == "evaluate":

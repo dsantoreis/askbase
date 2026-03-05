@@ -36,6 +36,17 @@ def test_ingest_retrieve_answer(sample_docs: list[Path]):
     assert "contexto" in answer.lower() or "compliance" in answer.lower()
 
 
+def test_answer_includes_citations(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
+    rag.ingest_paths(sample_docs)
+
+    result = rag.answer_with_citations("Where to store audit evidence?", top_k=2)
+
+    assert "Referências" in result.answer
+    assert len(result.citations) >= 1
+    assert result.citations[0].doc_id.endswith("policy.md")
+
+
 def test_persist_load_and_eval(sample_docs: list[Path], tmp_path: Path):
     index = tmp_path / "idx.pkl"
     eval_data = tmp_path / "eval.jsonl"

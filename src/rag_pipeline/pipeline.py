@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import pickle
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +32,24 @@ class RetrievalConfig:
     rerank_boost: float = 0.15
 
 
+@dataclass
+class Citation:
+    doc_id: str
+    chunk_start: int
+    chunk_end: int
+    score: float
+    excerpt: str
+
+
+@dataclass
+class AnswerResult:
+    answer: str
+    citations: list[Citation]
+
+
 class RAGPipeline:
     SUPPORTED_EXTENSIONS = {".txt", ".md"}
-    INDEX_VERSION = "2.0"
+    INDEX_VERSION = "2.1"
 
     def __init__(
         self,
@@ -56,7 +71,10 @@ class RAGPipeline:
             p = Path(path)
             if p.is_dir():
                 for file in sorted(p.rglob("*")):
-                    if file.is_file() and file.suffix.lower() in self.SUPPORTED_EXTENSIONS:
+                    if (
+                        file.is_file()
+                        and file.suffix.lower() in self.SUPPORTED_EXTENSIONS
+                    ):
                         all_chunks.extend(self._read_and_chunk(file, seen_hashes))
             elif p.is_file():
                 all_chunks.extend(self._read_and_chunk(p, seen_hashes))
@@ -88,7 +106,9 @@ class RAGPipeline:
                 + self.retrieval_config.keyword_weight * keyword_score
             )
             rerank_bonus = self._rerank_bonus(query_terms, chunk_terms)
-            final_score = hybrid_score + self.retrieval_config.rerank_boost * rerank_bonus
+            final_score = (
+                hybrid_score + self.retrieval_config.rerank_boost * rerank_bonus
+            )
 
             if final_score > 0:
                 ranked.append(
@@ -103,17 +123,40 @@ class RAGPipeline:
         ranked.sort(key=lambda item: item["score"], reverse=True)
         return ranked[:top_k]
 
-    def answer(self, query: str, top_k: int = 3) -> str:
+    def answer_with_citations(self, query: str, top_k: int = 3) -> AnswerResult:
         hits = self.retrieve(query, top_k=top_k)
         if not hits:
-            return "Não encontrei contexto relevante para responder."
+            return AnswerResult(
+                answer="Não encontrei contexto relevante para responder.", citations=[]
+            )
 
         best = hits[0]["chunk"].text
         summary = best[:320] + ("..." if len(best) > 320 else "")
-        context_lines = [f"[{i+1}] ({h['chunk'].doc_id}) {h['chunk'].text}" for i, h in enumerate(hits)]
-        return "Resposta baseada no contexto recuperado:\n" + summary + "\n\nContexto usado:\n" + "\n".join(context_lines)
+        citations = [
+            Citation(
+                doc_id=h["chunk"].doc_id,
+                chunk_start=h["chunk"].start,
+                chunk_end=h["chunk"].end,
+                score=round(float(h["score"]), 4),
+                excerpt=h["chunk"].text[:180],
+            )
+            for h in hits
+        ]
 
-    def evaluate_precision_at_k(self, dataset_path: str | Path, k: int = 3) -> dict[str, Any]:
+        refs = " ".join(f"[{i + 1}]" for i in range(len(citations)))
+        answer = (
+            "Resposta baseada no contexto recuperado:\n"
+            f"{summary}\n\n"
+            f"Referências: {refs}"
+        )
+        return AnswerResult(answer=answer, citations=citations)
+
+    def answer(self, query: str, top_k: int = 3) -> str:
+        return self.answer_with_citations(query, top_k=top_k).answer
+
+    def evaluate_precision_at_k(
+        self, dataset_path: str | Path, k: int = 3
+    ) -> dict[str, Any]:
         entries = _load_eval_jsonl(Path(dataset_path))
         if not entries:
             raise ValueError("evaluation dataset is empty")
@@ -152,7 +195,9 @@ class RAGPipeline:
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("wb") as f:
             pickle.dump(payload, f)
-        logger.info("index_saved", extra={"path": str(path), "chunks": len(self.chunks)})
+        logger.info(
+            "index_saved", extra={"path": str(path), "chunks": len(self.chunks)}
+        )
 
     @classmethod
     def load(cls, path: str | Path) -> "RAGPipeline":
@@ -210,14 +255,22 @@ class RAGPipeline:
         if not query_terms:
             return 0.0
         coverage = len(query_terms.intersection(chunk_terms)) / len(query_terms)
-        rare_term_bonus = 1.0 if len(query_terms.intersection(chunk_terms)) >= 2 else 0.0
+        rare_term_bonus = (
+            1.0 if len(query_terms.intersection(chunk_terms)) >= 2 else 0.0
+        )
         return 0.7 * coverage + 0.3 * rare_term_bonus
 
 
-
 def _normalize_terms(text: str) -> list[str]:
-    return [token.strip(".,:;!?()[]{}\"'").lower() for token in text.split() if token.strip()]
+    return [
+        token.strip(".,:;!?()[]{}\"'").lower()
+        for token in text.split()
+        if token.strip()
+    ]
 
+
+def citations_to_dict(citations: list[Citation]) -> list[dict[str, Any]]:
+    return [asdict(c) for c in citations]
 
 
 def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -229,6 +282,8 @@ def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
                 continue
             obj = json.loads(line)
             if "query" not in obj or "relevant_doc_ids" not in obj:
-                raise ValueError("invalid evaluation row: require query and relevant_doc_ids")
+                raise ValueError(
+                    "invalid evaluation row: require query and relevant_doc_ids"
+                )
             entries.append(obj)
     return entries

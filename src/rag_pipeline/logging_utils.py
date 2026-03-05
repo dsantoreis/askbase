@@ -18,7 +18,6 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-
 def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers.clear()
