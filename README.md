@@ -1,74 +1,39 @@
 # rag-pipeline-demo
 
-Demo funcional de **pipeline RAG (Retrieval-Augmented Generation)** em TypeScript.
-
-> Repositório local inicializado como privado (`"private": true` no `package.json`).
-
-## O que o demo faz
-
-Pipeline completo, local e sem API externa:
-
-1. **Ingestão** de documentos texto (`docs/knowledge-base.txt`)
-2. **Chunking** com overlap
-3. **Indexação** em memória
-4. **Retrieval** por similaridade lexical simples
-5. **Resposta** com LLM mock usando contexto recuperado
+Pipeline RAG mínimo em Python com:
+- ingestão de `.txt`/`.md`
+- chunking com overlap
+- embeddings locais simples (TF-IDF)
+- retrieval por similaridade cosseno
+- resposta baseada no contexto recuperado
 
 ## Requisitos
+- Python 3.10+
 
-- Node.js 20+
-- npm 10+
-
-## Instalação
-
+## Setup
 ```bash
-npm install
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
 ```
 
-## Executar demo
-
+## Uso
+### 1) Ingerir documentos
 ```bash
-npm run demo
-# ou
-./scripts/run-demo.sh
-# ou com pergunta customizada
-npm run demo -- "Como o chunking melhora recall?"
+python -m rag_pipeline.cli ingest data --index rag_index.pkl
 ```
 
-## Rodar testes
-
+### 2) Perguntar
 ```bash
-npm test
-```
-
-## Build TypeScript
-
-```bash
-npm run build
+python -m rag_pipeline.cli ask "o que é retrieval?" --index rag_index.pkl --top-k 3
 ```
 
 ## Estrutura
+- `src/rag_pipeline/chunking.py` — divisão em chunks
+- `src/rag_pipeline/pipeline.py` — ingestão, embeddings, retrieval, resposta, persistência
+- `src/rag_pipeline/cli.py` — CLI
+- `tests/test_pipeline.py` — teste básico
 
-```text
-src/
-  ingest.ts      # leitura de documentos
-  chunk.ts       # chunking e overlap
-  retriever.ts   # scoring e top-k
-  llm.ts         # resposta mock
-  pipeline.ts    # orquestra pipeline RAG
-  demo.ts        # ponto de entrada executável
-docs/
-  knowledge-base.txt
-test/
-  chunk.test.ts
-  retriever.test.ts
-  pipeline.test.ts
-scripts/
-  run-demo.sh
-```
-
-## Próximos passos sugeridos
-
-- Trocar retrieval lexical por embeddings reais
-- Persistir índice vetorial (SQLite/pgvector)
-- Adicionar avaliação automática (precision@k / recall@k)
+## Observações
+- Embeddings locais via `scikit-learn` (TF-IDF), sem API externa.
+- Resposta é extrativa/sumarizada do melhor chunk (demo funcional).
