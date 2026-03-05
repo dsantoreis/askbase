@@ -85,6 +85,10 @@ class HealthzLiteResponse(BaseModel):
     uptime_seconds: float
 
 
+class AlivezResponse(BaseModel):
+    status: str
+
+
 class ReadyzLiteResponse(BaseModel):
     ready: bool
     uptime_seconds: float
@@ -265,6 +269,10 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             status="ok",
             uptime_seconds=time.monotonic() - state["started_at"],
         )
+
+    @app.get("/alivez", response_model=AlivezResponse)
+    def alivez() -> AlivezResponse:
+        return AlivezResponse(status="alive")
 
     @app.get("/pingz", response_model=PingzResponse)
     def pingz() -> PingzResponse:

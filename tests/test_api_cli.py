@@ -38,6 +38,11 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert healthz_lite_payload["status"] == "ok"
     assert healthz_lite_payload["uptime_seconds"] >= 0
 
+    alivez = client.get("/alivez")
+    assert alivez.status_code == 200
+    alivez_payload = alivez.json()
+    assert alivez_payload["status"] == "alive"
+
     pingz = client.get("/pingz")
     assert pingz.status_code == 200
     pingz_payload = pingz.json()
@@ -126,6 +131,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     }
     assert routes["/health"] == {"GET"}
     assert routes["/healthz-lite"] == {"GET"}
+    assert routes["/alivez"] == {"GET"}
     assert routes["/pingz"] == {"GET"}
     assert routes["/timez"] == {"GET"}
     assert routes["/readyz-lite"] == {"GET"}
@@ -209,6 +215,10 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     readyz_lite_payload = readyz_lite.json()
     assert readyz_lite_payload["ready"] is False
     assert readyz_lite_payload["uptime_seconds"] >= 0
+
+    alivez = client.get("/alivez")
+    assert alivez.status_code == 200
+    assert alivez.json()["status"] == "alive"
 
     statusz = client.get("/statusz")
     assert statusz.status_code == 200
