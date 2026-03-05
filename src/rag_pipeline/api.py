@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .chunking import chunk_text
@@ -33,6 +35,17 @@ class IngestResponse(BaseModel):
 class VersionResponse(BaseModel):
     app_version: str
     index_path: str
+
+
+class ReadyResponse(BaseModel):
+    status: str
+    index_loaded: bool
+    index_exists: bool
+    index_readable: bool
+    artifacts_dir_exists: bool
+    artifacts_dir_writable: bool
+    index_path: str
+    artifacts_dir: str
 
 
 def _render_metrics(state: dict) -> str:
@@ -104,6 +117,44 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "index_loaded": state["rag"] is not None,
             "index_path": str(state["index_path"]),
         }
+
+    @app.get("/readyz", response_model=ReadyResponse)
+    def readyz() -> JSONResponse:
+        index_path = state["index_path"]
+        artifacts_dir = index_path.parent
+
+        index_loaded = state["rag"] is not None
+        index_exists = index_path.exists()
+        index_readable = (
+            index_exists and index_path.is_file() and os.access(index_path, os.R_OK)
+        )
+        artifacts_dir_exists = artifacts_dir.exists() and artifacts_dir.is_dir()
+        artifacts_dir_writable = artifacts_dir_exists and os.access(
+            artifacts_dir, os.W_OK | os.X_OK
+        )
+
+        ready = (
+            index_loaded
+            and index_exists
+            and index_readable
+            and artifacts_dir_exists
+            and bool(artifacts_dir_writable)
+        )
+        payload = ReadyResponse(
+            status="ready" if ready else "not_ready",
+            index_loaded=index_loaded,
+            index_exists=index_exists,
+            index_readable=index_readable,
+            artifacts_dir_exists=artifacts_dir_exists,
+            artifacts_dir_writable=bool(artifacts_dir_writable),
+            index_path=str(index_path),
+            artifacts_dir=str(artifacts_dir),
+        )
+
+        return JSONResponse(
+            status_code=200 if ready else 503,
+            content=payload.model_dump(),
+        )
 
     @app.get("/version", response_model=VersionResponse)
     def version() -> VersionResponse:

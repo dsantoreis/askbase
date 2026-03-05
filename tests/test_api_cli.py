@@ -36,6 +36,16 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert version_payload["app_version"] == "1.2.0"
     assert version_payload["index_path"] == str(index)
 
+    ready = client.get("/readyz")
+    assert ready.status_code == 200
+    ready_payload = ready.json()
+    assert ready_payload["status"] == "ready"
+    assert ready_payload["index_loaded"] is True
+    assert ready_payload["index_exists"] is True
+    assert ready_payload["index_readable"] is True
+    assert ready_payload["artifacts_dir_exists"] is True
+    assert ready_payload["artifacts_dir_writable"] is True
+
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
@@ -54,6 +64,12 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
 def test_api_ask_without_index_returns_400(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)
+
+    ready = client.get("/readyz")
+    assert ready.status_code == 503
+    ready_payload = ready.json()
+    assert ready_payload["status"] == "not_ready"
+    assert ready_payload["index_loaded"] is False
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400

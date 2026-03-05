@@ -108,6 +108,7 @@ python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 
 
 Endpoints:
 - `GET /health`
+- `GET /readyz`
 - `GET /version`
 - `GET /metrics`
 - `POST /ingest`
@@ -125,20 +126,24 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + version + metrics)
+### Runbook rápido (health + readyz + version + metrics)
 
 ```bash
 # 1) Health check
 curl -s http://127.0.0.1:8080/health | jq .
 
-# 2) Versão e index ativo
+# 2) Readiness (índice carregado + artefatos acessíveis)
+curl -s http://127.0.0.1:8080/readyz | jq .
+
+# 3) Versão e index ativo
 curl -s http://127.0.0.1:8080/version | jq .
 
-# 3) Métricas estilo Prometheus
+# 4) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 4) Sanidade fim-a-fim (health + version + ask + metrics)
+# 5) Sanidade fim-a-fim (health + readyz + version + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
+curl -s http://127.0.0.1:8080/readyz | jq .status
 curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
@@ -209,7 +214,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /version` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---
