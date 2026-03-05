@@ -64,6 +64,7 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     citations: list[dict]
+    citations_count: int = Field(ge=0)
 
 
 class IngestRequest(BaseModel):
@@ -740,8 +741,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             doc_id_contains=req.doc_id_contains,
         )
         _record_latency(state["ask_latency_seconds"], time.perf_counter() - started)
+        citations = citations_to_dict(result.citations)
         return AskResponse(
-            answer=result.answer, citations=citations_to_dict(result.citations)
+            answer=result.answer,
+            citations=citations,
+            citations_count=len(citations),
         )
 
     @app.post("/ask-safe", response_model=AskResponse)

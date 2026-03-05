@@ -221,6 +221,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert "answer" in body
     assert "citations" in body
     assert len(body["citations"]) >= 1
+    assert body["citations_count"] == len(body["citations"])
 
     min_score_filtered = client.post(
         "/ask",
@@ -229,6 +230,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert min_score_filtered.status_code == 200
     min_score_filtered_payload = min_score_filtered.json()
     assert min_score_filtered_payload["citations"] == []
+    assert min_score_filtered_payload["citations_count"] == 0
     assert "Não encontrei contexto relevante" in min_score_filtered_payload["answer"]
 
     metrics_after_ask = client.get("/metrics")
