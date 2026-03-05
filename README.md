@@ -111,6 +111,7 @@ Endpoints:
 - `GET /readyz`
 - `GET /version`
 - `GET /diag` (snapshot seguro de índice/artefatos; sem conteúdo de documentos)
+- `GET /stats` (contadores agregados por endpoint + uptime)
 - `GET /metrics`
 - `POST /ingest`
 - `POST /ask`
@@ -127,7 +128,7 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + readyz + version + diag + metrics)
+### Runbook rápido (health + readyz + version + diag + stats + metrics)
 
 ```bash
 # 1) Health check
@@ -142,14 +143,18 @@ curl -s http://127.0.0.1:8080/version | jq .
 # 4) Diagnóstico seguro (somente metadados de índice/artefatos)
 curl -s http://127.0.0.1:8080/diag | jq .
 
-# 5) Métricas estilo Prometheus
+# 5) Estatísticas agregadas de API (counters + uptime)
+curl -s http://127.0.0.1:8080/stats | jq .
+
+# 6) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 6) Sanidade fim-a-fim (health + readyz + version + diag + ask + metrics)
+# 7) Sanidade fim-a-fim (health + readyz + version + diag + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
 curl -s http://127.0.0.1:8080/readyz | jq .status
 curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s http://127.0.0.1:8080/diag | jq '.index_snapshot.chunks_count'
+curl -s http://127.0.0.1:8080/stats | jq '.counters'
 curl -s -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
   -d '{"query":"How solve VPN issues?","top_k":2}' | jq .answer
@@ -219,7 +224,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `GET /diag` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `GET /diag` + `GET /stats` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---

@@ -59,6 +59,20 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert ready_payload["artifacts_dir_exists"] is True
     assert ready_payload["artifacts_dir_writable"] is True
 
+    stats_before_ask = client.get("/stats")
+    assert stats_before_ask.status_code == 200
+    stats_before_ask_payload = stats_before_ask.json()
+    assert stats_before_ask_payload["status"] == "ok"
+    assert stats_before_ask_payload["uptime_seconds"] >= 0
+    assert stats_before_ask_payload["counters"] == {
+        "health": 1,
+        "ready": 1,
+        "ask": 0,
+        "ingest": 0,
+        "diag": 1,
+    }
+    assert stats_before_ask_payload["requests_total"] == 3
+
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
@@ -72,6 +86,12 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
 
     metrics_after_ask = client.get("/metrics")
     assert "rag_api_ask_requests_total 1" in metrics_after_ask.text
+
+    stats_after_ask = client.get("/stats")
+    assert stats_after_ask.status_code == 200
+    stats_after_ask_payload = stats_after_ask.json()
+    assert stats_after_ask_payload["counters"]["ask"] == 1
+    assert stats_after_ask_payload["requests_total"] == 4
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -93,6 +113,18 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400
+
+    stats = client.get("/stats")
+    assert stats.status_code == 200
+    stats_payload = stats.json()
+    assert stats_payload["counters"] == {
+        "health": 0,
+        "ready": 1,
+        "ask": 1,
+        "ingest": 0,
+        "diag": 1,
+    }
+    assert stats_payload["requests_total"] == 3
 
 
 def test_api_ingest_then_ask(tmp_path: Path):
@@ -118,6 +150,12 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert "answer" in ask_payload
     assert len(ask_payload["citations"]) >= 1
     assert ask_payload["citations"][0]["doc_id"] == "runbook:mfa"
+
+    stats = client.get("/stats")
+    assert stats.status_code == 200
+    stats_payload = stats.json()
+    assert stats_payload["counters"]["ingest"] == 1
+    assert stats_payload["counters"]["ask"] == 1
 
 
 def test_cli_ingest_and_ask_json(tmp_path: Path):

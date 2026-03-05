@@ -58,6 +58,13 @@ class DiagResponse(BaseModel):
     artifacts_snapshot: dict
 
 
+class StatsResponse(BaseModel):
+    status: str
+    uptime_seconds: float
+    requests_total: int
+    counters: dict[str, int]
+
+
 def _render_metrics(state: dict) -> str:
     uptime_seconds = time.monotonic() - state["started_at"]
     index_loaded = 1 if state["rag"] is not None else 0
@@ -112,6 +119,8 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "rag": RAGPipeline.load(index) if index.exists() else None,
         "started_at": time.monotonic(),
         "health_requests_total": 0,
+        "ready_requests_total": 0,
+        "diag_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_latency_seconds": [],
@@ -130,6 +139,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/readyz", response_model=ReadyResponse)
     def readyz() -> JSONResponse:
+        state["ready_requests_total"] += 1
         index_path = state["index_path"]
         artifacts_dir = index_path.parent
 
@@ -175,6 +185,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/diag", response_model=DiagResponse)
     def diag() -> DiagResponse:
+        state["diag_requests_total"] += 1
         index_path = state["index_path"]
         artifacts_dir = index_path.parent
         rag = state["rag"]
@@ -246,6 +257,22 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return Response(
             content=_render_metrics(state),
             media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
+    @app.get("/stats", response_model=StatsResponse)
+    def stats() -> StatsResponse:
+        counters = {
+            "health": state["health_requests_total"],
+            "ready": state["ready_requests_total"],
+            "ask": state["ask_requests_total"],
+            "ingest": state["ingest_requests_total"],
+            "diag": state["diag_requests_total"],
+        }
+        return StatsResponse(
+            status="ok",
+            uptime_seconds=time.monotonic() - state["started_at"],
+            requests_total=sum(counters.values()),
+            counters=counters,
         )
 
     @app.post("/ingest", response_model=IngestResponse)
