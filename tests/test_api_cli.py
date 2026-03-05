@@ -91,6 +91,16 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         not in str(diag_payload).lower()
     )
 
+    diag_lite = client.get("/diag-lite")
+    assert diag_lite.status_code == 200
+    diag_lite_payload = diag_lite.json()
+    assert diag_lite_payload["status"] == "ok"
+    assert diag_lite_payload["index_loaded"] is True
+    assert diag_lite_payload["index_snapshot"]["chunks_count"] >= 1
+    assert diag_lite_payload["index_snapshot"]["unique_doc_ids_count"] >= 1
+    assert "index_file" not in diag_lite_payload
+    assert "artifacts_snapshot" not in diag_lite_payload
+
     ready = client.get("/readyz")
     assert ready.status_code == 200
     ready_payload = ready.json()
@@ -138,6 +148,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/statusz"] == {"GET"}
     assert routes["/meta-lite"] == {"GET"}
     assert routes["/build-lite"] == {"GET"}
+    assert routes["/diag-lite"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
@@ -167,10 +178,11 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "ask": 0,
         "ingest": 0,
         "diag": 1,
+        "diag_lite": 1,
         "openapi_lite": 1,
         "routes_hash": 2,
     }
-    assert stats_before_ask_payload["requests_total"] == 8
+    assert stats_before_ask_payload["requests_total"] == 9
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -190,7 +202,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 1
-    assert stats_after_ask_payload["requests_total"] == 9
+    assert stats_after_ask_payload["requests_total"] == 10
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -203,6 +215,13 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     assert diag_payload["index_loaded"] is False
     assert diag_payload["index_file"]["exists"] is False
     assert diag_payload["index_snapshot"]["chunks_count"] == 0
+
+    diag_lite = client.get("/diag-lite")
+    assert diag_lite.status_code == 200
+    diag_lite_payload = diag_lite.json()
+    assert diag_lite_payload["index_loaded"] is False
+    assert diag_lite_payload["index_snapshot"]["chunks_count"] == 0
+    assert "index_file" not in diag_lite_payload
 
     ready = client.get("/readyz")
     assert ready.status_code == 503
@@ -254,10 +273,11 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "ask": 1,
         "ingest": 0,
         "diag": 1,
+        "diag_lite": 1,
         "openapi_lite": 0,
         "routes_hash": 0,
     }
-    assert stats_payload["requests_total"] == 3
+    assert stats_payload["requests_total"] == 4
 
 
 def test_api_ingest_then_ask(tmp_path: Path):

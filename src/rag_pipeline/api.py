@@ -109,6 +109,12 @@ class DiagResponse(BaseModel):
     artifacts_snapshot: dict
 
 
+class DiagLiteResponse(BaseModel):
+    status: str
+    index_loaded: bool
+    index_snapshot: dict
+
+
 class StatsResponse(BaseModel):
     status: str
     uptime_seconds: float
@@ -225,6 +231,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "pingz_requests_total": 0,
         "timez_requests_total": 0,
         "diag_requests_total": 0,
+        "diag_lite_requests_total": 0,
         "openapi_lite_requests_total": 0,
         "routes_hash_requests_total": 0,
         "ask_requests_total": 0,
@@ -440,6 +447,34 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             artifacts_snapshot=artifacts_snapshot,
         )
 
+    @app.get("/diag-lite", response_model=DiagLiteResponse)
+    def diag_lite() -> DiagLiteResponse:
+        state["diag_lite_requests_total"] += 1
+        rag = state["rag"]
+
+        if rag is None:
+            index_snapshot = {
+                "index_version": None,
+                "chunks_count": 0,
+                "unique_doc_ids_count": 0,
+                "vectorizer_vocab_size": 0,
+            }
+        else:
+            index_snapshot = {
+                "index_version": getattr(rag, "INDEX_VERSION", None),
+                "chunks_count": len(rag.chunks),
+                "unique_doc_ids_count": len({c.doc_id for c in rag.chunks}),
+                "vectorizer_vocab_size": len(
+                    getattr(rag.vectorizer, "vocabulary_", {})
+                ),
+            }
+
+        return DiagLiteResponse(
+            status="ok",
+            index_loaded=rag is not None,
+            index_snapshot=index_snapshot,
+        )
+
     @app.get("/openapi-lite", response_model=OpenApiLiteResponse)
     def openapi_lite() -> OpenApiLiteResponse:
         state["openapi_lite_requests_total"] += 1
@@ -477,6 +512,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "ask": state["ask_requests_total"],
             "ingest": state["ingest_requests_total"],
             "diag": state["diag_requests_total"],
+            "diag_lite": state["diag_lite_requests_total"],
             "openapi_lite": state["openapi_lite_requests_total"],
             "routes_hash": state["routes_hash_requests_total"],
         }
