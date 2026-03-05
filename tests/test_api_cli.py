@@ -887,6 +887,54 @@ def test_cli_rejects_doc_id_and_doc_id_contains_together(tmp_path: Path):
     assert "use either --doc-id or --doc-id-contains" in ask.stderr
 
 
+def test_cli_ask_safe_fails_when_no_citations(tmp_path: Path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "ops.md").write_text(
+        "For recurring MFA failures, reset enrollment and validate user identity first.",
+        encoding="utf-8",
+    )
+
+    index = tmp_path / "rag_cli_safe.pkl"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ingest",
+            str(docs),
+            "--index",
+            str(index),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "2",
+            "--min-score",
+            "10",
+            "--safe",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "no matching citations found" in ask.stderr
+
+
 def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()

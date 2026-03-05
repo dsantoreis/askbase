@@ -61,6 +61,11 @@ def main() -> None:
     ask.add_argument("--doc-id", type=_non_blank_text)
     ask.add_argument("--doc-id-contains", type=_non_blank_text)
     ask.add_argument("--json", action="store_true")
+    ask.add_argument(
+        "--safe",
+        action="store_true",
+        help="fail if no citations are found for the query",
+    )
 
     evaluate = sub.add_parser("evaluate")
     evaluate.add_argument("--index", default="rag_index.pkl")
@@ -110,13 +115,20 @@ def main() -> None:
             doc_id=args.doc_id,
             doc_id_contains=args.doc_id_contains,
         )
+        citations = citations_to_dict(result.citations)
+
+        if args.safe and not citations:
+            raise SystemExit(
+                "no matching citations found; relax --min-score or adjust document filters"
+            )
+
         if args.json:
             print(
                 json.dumps(
                     {
                         "query": args.query,
                         "answer": result.answer,
-                        "citations": citations_to_dict(result.citations),
+                        "citations": citations,
                     },
                     ensure_ascii=False,
                 )
