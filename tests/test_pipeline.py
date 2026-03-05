@@ -40,3 +40,15 @@ def test_ask_returns_verifiable_citations(tmp_path: Path) -> None:
     assert answer.citations
     assert answer.citations[0].doc_id.endswith("policy.md")
     assert answer.citations[0].score >= 0.0
+
+
+def test_retrieve_rejects_invalid_top_k(tmp_path: Path) -> None:
+    doc = tmp_path / "doc.txt"
+    doc.write_text("SRE runbook for incident command and postmortem workflow.", encoding="utf-8")
+
+    rag = RAGPipeline()
+    rag.ingest([doc])
+
+    with pytest.raises(ValueError, match="top_k must be >= 1"):
+        rag.retrieve("incident command", top_k=0)
+
