@@ -669,6 +669,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         rag.chunks = [c for c in rag.chunks if c.doc_id != req.doc_id] + chunks
         texts = [c.text for c in rag.chunks]
         rag._matrix = rag.vectorizer.fit_transform(texts) if texts else None
+        rag._semantic_embeddings = rag._encode_semantic_texts(texts)
         rag.save(state["index_path"])
 
         return IngestResponse(

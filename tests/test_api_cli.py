@@ -777,3 +777,53 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     doc_filter_payload = json.loads(ask_doc_filter.stdout)
     assert len(doc_filter_payload["citations"]) >= 1
     assert all("ops" in c["doc_id"].lower() for c in doc_filter_payload["citations"])
+
+
+def test_api_ingest_recomputes_semantic_embeddings(tmp_path: Path, monkeypatch):
+    class FakeSentenceTransformer:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def encode(self, texts):
+            vectors = {
+                "alpha policy document": [1.0, 0.0],
+                "beta runbook document": [0.0, 1.0],
+                "beta runbook": [0.0, 1.0],
+            }
+            return [vectors.get(text, [0.0, 0.0]) for text in texts]
+
+    fake_module = type("_FakeSentenceModule", (), {"SentenceTransformer": FakeSentenceTransformer})
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+
+    seed_doc = tmp_path / "seed.txt"
+    seed_doc.write_text("alpha policy document", encoding="utf-8")
+    index = tmp_path / "rag.pkl"
+
+    rag = RAGPipeline(
+        ingest_config=IngestConfig(chunk_size=80, overlap=10, min_chars=5),
+    )
+    rag.retrieval_config.use_semantic = True
+    rag.retrieval_config.lexical_weight = 0.0
+    rag.retrieval_config.keyword_weight = 0.0
+    rag.retrieval_config.semantic_weight = 1.0
+    rag.retrieval_config.rerank_boost = 0.0
+    rag.ingest_paths([seed_doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    ingest_res = client.post(
+        "/ingest",
+        json={"doc_id": "api:beta", "text": "beta runbook document"},
+    )
+    assert ingest_res.status_code == 200
+
+    ask_res = client.post(
+        "/ask",
+        json={"query": "beta runbook", "top_k": 1},
+    )
+    assert ask_res.status_code == 200
+    ask_payload = ask_res.json()
+    assert ask_payload["citations"]
+    assert ask_payload["citations"][0]["doc_id"] == "api:beta"
