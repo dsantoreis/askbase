@@ -27,7 +27,7 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
   - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/healthz-lite`, `/alivez`, `/pingz`, `/timez`, `/readyz`, `/readyz-lite`, `/statusz`, `/version`, `/build-info`, `/build-lite`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
+  - API FastAPI: `/health`, `/healthz-lite`, `/alivez`, `/echoz`, `/pingz`, `/timez`, `/readyz`, `/readyz-lite`, `/statusz`, `/version`, `/build-info`, `/build-lite`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -112,6 +112,7 @@ Endpoints:
 - `GET /health`
 - `GET /healthz-lite` (status + uptime_seconds; health compacto para probes leves)
 - `GET /alivez` (liveness mínimo: `{"status":"alive"}`)
+- `GET /echoz` (echo operacional: `{"status":"ok","service":"RAG Pipeline Demo API"}`)
 - `GET /pingz`
 - `GET /timez` (timestamp UTC do servidor + uptime_seconds)
 - `GET /readyz`
@@ -141,7 +142,7 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + healthz-lite + alivez + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + metrics)
+### Runbook rápido (health + healthz-lite + alivez + echoz + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + metrics)
 
 ```bash
 # 1) Health check
@@ -153,7 +154,10 @@ curl -s http://127.0.0.1:8080/healthz-lite | jq .
 # 3) Liveness mínimo
 curl -s http://127.0.0.1:8080/alivez | jq .
 
-# 4) Ping de latência + timestamp UTC
+# 4) Echo operacional (status + service)
+curl -s http://127.0.0.1:8080/echoz | jq .
+
+# 5) Ping de latência + timestamp UTC
 curl -s http://127.0.0.1:8080/pingz | jq .
 
 # 5) Hora do servidor UTC + uptime
@@ -195,10 +199,11 @@ curl -s http://127.0.0.1:8080/stats | jq .
 # 17) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 18) Sanidade fim-a-fim (health + healthz-lite + alivez + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + ask + metrics)
+# 18) Sanidade fim-a-fim (health + healthz-lite + alivez + echoz + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
 curl -s http://127.0.0.1:8080/healthz-lite | jq .uptime_seconds
 curl -s http://127.0.0.1:8080/alivez | jq .status
+curl -s http://127.0.0.1:8080/echoz | jq .service
 curl -s http://127.0.0.1:8080/pingz | jq .status
 curl -s http://127.0.0.1:8080/timez | jq .server_time_utc
 curl -s http://127.0.0.1:8080/readyz | jq .status
@@ -281,7 +286,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /healthz-lite` + `GET /alivez` + `GET /pingz` + `GET /timez` + `GET /readyz` + `GET /readyz-lite` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /build-lite` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /healthz-lite` + `GET /alivez` + `GET /echoz` + `GET /pingz` + `GET /timez` + `GET /readyz` + `GET /readyz-lite` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /build-lite` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---

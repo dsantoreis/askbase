@@ -89,6 +89,11 @@ class AlivezResponse(BaseModel):
     status: str
 
 
+class EchozResponse(BaseModel):
+    status: str
+    service: str
+
+
 class ReadyzLiteResponse(BaseModel):
     ready: bool
     uptime_seconds: float
@@ -280,6 +285,10 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     @app.get("/alivez", response_model=AlivezResponse)
     def alivez() -> AlivezResponse:
         return AlivezResponse(status="alive")
+
+    @app.get("/echoz", response_model=EchozResponse)
+    def echoz() -> EchozResponse:
+        return EchozResponse(status="ok", service=app.title)
 
     @app.get("/pingz", response_model=PingzResponse)
     def pingz() -> PingzResponse:

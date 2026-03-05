@@ -43,6 +43,12 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     alivez_payload = alivez.json()
     assert alivez_payload["status"] == "alive"
 
+    echoz = client.get("/echoz")
+    assert echoz.status_code == 200
+    echoz_payload = echoz.json()
+    assert echoz_payload["status"] == "ok"
+    assert echoz_payload["service"] == "RAG Pipeline Demo API"
+
     pingz = client.get("/pingz")
     assert pingz.status_code == 200
     pingz_payload = pingz.json()
@@ -142,6 +148,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/health"] == {"GET"}
     assert routes["/healthz-lite"] == {"GET"}
     assert routes["/alivez"] == {"GET"}
+    assert routes["/echoz"] == {"GET"}
     assert routes["/pingz"] == {"GET"}
     assert routes["/timez"] == {"GET"}
     assert routes["/readyz-lite"] == {"GET"}
@@ -238,6 +245,12 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     alivez = client.get("/alivez")
     assert alivez.status_code == 200
     assert alivez.json()["status"] == "alive"
+
+    echoz = client.get("/echoz")
+    assert echoz.status_code == 200
+    echoz_payload = echoz.json()
+    assert echoz_payload["status"] == "ok"
+    assert echoz_payload["service"] == "RAG Pipeline Demo API"
 
     statusz = client.get("/statusz")
     assert statusz.status_code == 200
