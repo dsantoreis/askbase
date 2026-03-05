@@ -69,6 +69,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert ready_payload["artifacts_dir_exists"] is True
     assert ready_payload["artifacts_dir_writable"] is True
 
+    statusz = client.get("/statusz")
+    assert statusz.status_code == 200
+    statusz_payload = statusz.json()
+    assert statusz_payload["ready"] is True
+    assert statusz_payload["uptime_seconds"] >= 0
+    assert statusz_payload["app_version"] == "1.2.0"
+
     openapi_lite = client.get("/openapi-lite")
     assert openapi_lite.status_code == 200
     openapi_lite_payload = openapi_lite.json()
@@ -78,6 +85,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         item["path"]: set(item["methods"]) for item in openapi_lite_payload["routes"]
     }
     assert routes["/health"] == {"GET"}
+    assert routes["/statusz"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
@@ -147,6 +155,13 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     ready_payload = ready.json()
     assert ready_payload["status"] == "not_ready"
     assert ready_payload["index_loaded"] is False
+
+    statusz = client.get("/statusz")
+    assert statusz.status_code == 200
+    statusz_payload = statusz.json()
+    assert statusz_payload["ready"] is False
+    assert statusz_payload["uptime_seconds"] >= 0
+    assert statusz_payload["app_version"] == "1.2.0"
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400

@@ -27,7 +27,7 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
   - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/readyz`, `/version`, `/build-info`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
+  - API FastAPI: `/health`, `/readyz`, `/statusz`, `/version`, `/build-info`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -110,6 +110,7 @@ Endpoints:
 - `GET /health`
 - `GET /readyz`
 - `GET /version`
+- `GET /statusz` (resumo compacto: ready + uptime_seconds + app_version)
 - `GET /build-info` (versão + index ativo + timestamp de boot da API)
 - `GET /diag` (snapshot seguro de índice/artefatos; sem conteúdo de documentos)
 - `GET /openapi-lite` (resumo seguro de rotas/métodos disponíveis; sem schema OpenAPI completo)
@@ -131,7 +132,7 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + readyz + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
+### Runbook rápido (health + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
 
 ```bash
 # 1) Health check
@@ -140,30 +141,34 @@ curl -s http://127.0.0.1:8080/health | jq .
 # 2) Readiness (índice carregado + artefatos acessíveis)
 curl -s http://127.0.0.1:8080/readyz | jq .
 
-# 3) Versão e index ativo
+# 3) Status compacto (ready + uptime_seconds + app_version)
+curl -s http://127.0.0.1:8080/statusz | jq .
+
+# 4) Versão e index ativo
 curl -s http://127.0.0.1:8080/version | jq .
 
-# 4) Build info (versão + index + started_at)
+# 5) Build info (versão + index + started_at)
 curl -s http://127.0.0.1:8080/build-info | jq .
 
-# 5) Diagnóstico seguro (somente metadados de índice/artefatos)
+# 6) Diagnóstico seguro (somente metadados de índice/artefatos)
 curl -s http://127.0.0.1:8080/diag | jq .
 
-# 6) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
+# 7) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
 curl -s http://127.0.0.1:8080/openapi-lite | jq .
 
-# 7) Hash estável das rotas expostas (schema-lite)
+# 8) Hash estável das rotas expostas (schema-lite)
 curl -s http://127.0.0.1:8080/routes-hash | jq .
 
-# 8) Estatísticas agregadas de API (counters + uptime)
+# 9) Estatísticas agregadas de API (counters + uptime)
 curl -s http://127.0.0.1:8080/stats | jq .
 
-# 9) Métricas estilo Prometheus
+# 10) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 10) Sanidade fim-a-fim (health + readyz + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
+# 11) Sanidade fim-a-fim (health + readyz + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
 curl -s http://127.0.0.1:8080/readyz | jq .status
+curl -s http://127.0.0.1:8080/statusz | jq .ready
 curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s http://127.0.0.1:8080/build-info | jq .started_at
 curl -s http://127.0.0.1:8080/diag | jq '.index_snapshot.chunks_count'
@@ -239,7 +244,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---

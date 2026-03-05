@@ -58,6 +58,12 @@ class ReadyResponse(BaseModel):
     artifacts_dir: str
 
 
+class StatuszResponse(BaseModel):
+    ready: bool
+    uptime_seconds: float
+    app_version: str
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -184,6 +190,26 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "ingest_errors_total": 0,
     }
 
+    def _is_ready() -> bool:
+        index_path = state["index_path"]
+        artifacts_dir = index_path.parent
+        index_loaded = state["rag"] is not None
+        index_exists = index_path.exists()
+        index_readable = (
+            index_exists and index_path.is_file() and os.access(index_path, os.R_OK)
+        )
+        artifacts_dir_exists = artifacts_dir.exists() and artifacts_dir.is_dir()
+        artifacts_dir_writable = artifacts_dir_exists and os.access(
+            artifacts_dir, os.W_OK | os.X_OK
+        )
+        return bool(
+            index_loaded
+            and index_exists
+            and index_readable
+            and artifacts_dir_exists
+            and artifacts_dir_writable
+        )
+
     @app.get("/health")
     def health() -> dict[str, str | bool]:
         state["health_requests_total"] += 1
@@ -209,13 +235,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             artifacts_dir, os.W_OK | os.X_OK
         )
 
-        ready = (
-            index_loaded
-            and index_exists
-            and index_readable
-            and artifacts_dir_exists
-            and bool(artifacts_dir_writable)
-        )
+        ready = _is_ready()
         payload = ReadyResponse(
             status="ready" if ready else "not_ready",
             index_loaded=index_loaded,
@@ -230,6 +250,14 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return JSONResponse(
             status_code=200 if ready else 503,
             content=payload.model_dump(),
+        )
+
+    @app.get("/statusz", response_model=StatuszResponse)
+    def statusz() -> StatuszResponse:
+        return StatuszResponse(
+            ready=_is_ready(),
+            uptime_seconds=time.monotonic() - state["started_at"],
+            app_version=app.version,
         )
 
     @app.get("/version", response_model=VersionResponse)
