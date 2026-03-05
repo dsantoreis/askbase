@@ -391,5 +391,18 @@ def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(
                     "invalid evaluation row: require query and relevant_doc_ids"
                 )
+
+            relevant_doc_ids = obj["relevant_doc_ids"]
+            if not isinstance(relevant_doc_ids, list) or not relevant_doc_ids:
+                raise ValueError(
+                    "invalid evaluation row: relevant_doc_ids must be a non-empty list"
+                )
+            if not all(
+                isinstance(doc_id, str) and doc_id.strip() for doc_id in relevant_doc_ids
+            ):
+                raise ValueError(
+                    "invalid evaluation row: relevant_doc_ids entries must be non-blank strings"
+                )
+
             entries.append(obj)
     return entries
