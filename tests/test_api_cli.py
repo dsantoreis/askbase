@@ -101,6 +101,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert statusz_payload["uptime_seconds"] >= 0
     assert statusz_payload["app_version"] == "1.2.0"
 
+    meta_lite = client.get("/meta-lite")
+    assert meta_lite.status_code == 200
+    meta_lite_payload = meta_lite.json()
+    assert meta_lite_payload["app_name"] == "RAG Pipeline Demo API"
+    assert meta_lite_payload["app_version"] == "1.2.0"
+    assert meta_lite_payload["uptime_seconds"] >= 0
+
     openapi_lite = client.get("/openapi-lite")
     assert openapi_lite.status_code == 200
     openapi_lite_payload = openapi_lite.json()
@@ -115,6 +122,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/timez"] == {"GET"}
     assert routes["/readyz-lite"] == {"GET"}
     assert routes["/statusz"] == {"GET"}
+    assert routes["/meta-lite"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
@@ -199,6 +207,13 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     assert statusz_payload["ready"] is False
     assert statusz_payload["uptime_seconds"] >= 0
     assert statusz_payload["app_version"] == "1.2.0"
+
+    meta_lite = client.get("/meta-lite")
+    assert meta_lite.status_code == 200
+    meta_lite_payload = meta_lite.json()
+    assert meta_lite_payload["app_name"] == "RAG Pipeline Demo API"
+    assert meta_lite_payload["app_version"] == "1.2.0"
+    assert meta_lite_payload["uptime_seconds"] >= 0
 
     res = client.post("/ask", json={"query": "hello", "top_k": 1})
     assert res.status_code == 400

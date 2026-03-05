@@ -117,6 +117,7 @@ Endpoints:
 - `GET /readyz-lite` (ready + uptime_seconds; readiness compacto para probes leves)
 - `GET /version`
 - `GET /statusz` (resumo compacto: ready + uptime_seconds + app_version)
+- `GET /meta-lite` (metadados leves: app_name + app_version + uptime_seconds)
 - `GET /build-info` (versão + index ativo + timestamp de boot da API)
 - `GET /diag` (snapshot seguro de índice/artefatos; sem conteúdo de documentos)
 - `GET /openapi-lite` (resumo seguro de rotas/métodos disponíveis; sem schema OpenAPI completo)
@@ -138,7 +139,7 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + healthz-lite + pingz + timez + readyz + readyz-lite + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
+### Runbook rápido (health + healthz-lite + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + diag + openapi-lite + routes-hash + stats + metrics)
 
 ```bash
 # 1) Health check
@@ -162,28 +163,31 @@ curl -s http://127.0.0.1:8080/readyz-lite | jq .
 # 7) Status compacto (ready + uptime_seconds + app_version)
 curl -s http://127.0.0.1:8080/statusz | jq .
 
-# 8) Versão e index ativo
+# 8) Meta-lite (app_name + app_version + uptime_seconds)
+curl -s http://127.0.0.1:8080/meta-lite | jq .
+
+# 9) Versão e index ativo
 curl -s http://127.0.0.1:8080/version | jq .
 
-# 9) Build info (versão + index + started_at)
+# 10) Build info (versão + index + started_at)
 curl -s http://127.0.0.1:8080/build-info | jq .
 
-# 10) Diagnóstico seguro (somente metadados de índice/artefatos)
+# 11) Diagnóstico seguro (somente metadados de índice/artefatos)
 curl -s http://127.0.0.1:8080/diag | jq .
 
-# 11) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
+# 12) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
 curl -s http://127.0.0.1:8080/openapi-lite | jq .
 
-# 12) Hash estável das rotas expostas (schema-lite)
+# 13) Hash estável das rotas expostas (schema-lite)
 curl -s http://127.0.0.1:8080/routes-hash | jq .
 
-# 13) Estatísticas agregadas de API (counters + uptime)
+# 14) Estatísticas agregadas de API (counters + uptime)
 curl -s http://127.0.0.1:8080/stats | jq .
 
-# 14) Métricas estilo Prometheus
+# 15) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 15) Sanidade fim-a-fim (health + healthz-lite + pingz + timez + readyz + readyz-lite + statusz + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
+# 16) Sanidade fim-a-fim (health + healthz-lite + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + diag + openapi-lite + routes-hash + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
 curl -s http://127.0.0.1:8080/healthz-lite | jq .uptime_seconds
 curl -s http://127.0.0.1:8080/pingz | jq .status
@@ -191,6 +195,7 @@ curl -s http://127.0.0.1:8080/timez | jq .server_time_utc
 curl -s http://127.0.0.1:8080/readyz | jq .status
 curl -s http://127.0.0.1:8080/readyz-lite | jq .ready
 curl -s http://127.0.0.1:8080/statusz | jq .ready
+curl -s http://127.0.0.1:8080/meta-lite | jq .app_name
 curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s http://127.0.0.1:8080/build-info | jq .started_at
 curl -s http://127.0.0.1:8080/diag | jq '.index_snapshot.chunks_count'

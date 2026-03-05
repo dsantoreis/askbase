@@ -85,6 +85,12 @@ class ReadyzLiteResponse(BaseModel):
     uptime_seconds: float
 
 
+class MetaLiteResponse(BaseModel):
+    app_name: str
+    app_version: str
+    uptime_seconds: float
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -320,6 +326,14 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             ready=_is_ready(),
             uptime_seconds=time.monotonic() - state["started_at"],
             app_version=app.version,
+        )
+
+    @app.get("/meta-lite", response_model=MetaLiteResponse)
+    def meta_lite() -> MetaLiteResponse:
+        return MetaLiteResponse(
+            app_name=app.title,
+            app_version=app.version,
+            uptime_seconds=time.monotonic() - state["started_at"],
         )
 
     @app.get("/version", response_model=VersionResponse)
