@@ -32,6 +32,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert health_payload["status"] == "ok"
     assert health_payload["index_loaded"] is True
 
+    pingz = client.get("/pingz")
+    assert pingz.status_code == 200
+    pingz_payload = pingz.json()
+    assert pingz_payload["status"] == "ok"
+    assert pingz_payload["latency_ms"] >= 0
+    assert datetime.fromisoformat(pingz_payload["timestamp_utc"]) is not None
+
     version = client.get("/version")
     assert version.status_code == 200
     version_payload = version.json()
@@ -85,6 +92,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         item["path"]: set(item["methods"]) for item in openapi_lite_payload["routes"]
     }
     assert routes["/health"] == {"GET"}
+    assert routes["/pingz"] == {"GET"}
     assert routes["/statusz"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
@@ -109,6 +117,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_before_ask_payload["uptime_seconds"] >= 0
     assert stats_before_ask_payload["counters"] == {
         "health": 1,
+        "pingz": 1,
         "ready": 1,
         "ask": 0,
         "ingest": 0,
@@ -116,7 +125,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "openapi_lite": 1,
         "routes_hash": 2,
     }
-    assert stats_before_ask_payload["requests_total"] == 6
+    assert stats_before_ask_payload["requests_total"] == 7
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -136,7 +145,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 1
-    assert stats_after_ask_payload["requests_total"] == 7
+    assert stats_after_ask_payload["requests_total"] == 8
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -171,6 +180,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     stats_payload = stats.json()
     assert stats_payload["counters"] == {
         "health": 0,
+        "pingz": 0,
         "ready": 1,
         "ask": 1,
         "ingest": 0,

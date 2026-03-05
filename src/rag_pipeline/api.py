@@ -64,6 +64,12 @@ class StatuszResponse(BaseModel):
     app_version: str
 
 
+class PingzResponse(BaseModel):
+    status: str
+    latency_ms: float
+    timestamp_utc: str
+
+
 class DiagResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -112,6 +118,9 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_health_requests_total Total number of /health requests.",
         "# TYPE rag_api_health_requests_total counter",
         f"rag_api_health_requests_total {state['health_requests_total']}",
+        "# HELP rag_api_pingz_requests_total Total number of /pingz requests.",
+        "# TYPE rag_api_pingz_requests_total counter",
+        f"rag_api_pingz_requests_total {state['pingz_requests_total']}",
         "# HELP rag_api_ask_requests_total Total number of /ask requests.",
         "# TYPE rag_api_ask_requests_total counter",
         f"rag_api_ask_requests_total {state['ask_requests_total']}",
@@ -180,6 +189,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "started_at_iso": datetime.now(tz=UTC).isoformat(),
         "health_requests_total": 0,
         "ready_requests_total": 0,
+        "pingz_requests_total": 0,
         "diag_requests_total": 0,
         "openapi_lite_requests_total": 0,
         "routes_hash_requests_total": 0,
@@ -218,6 +228,17 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "index_loaded": state["rag"] is not None,
             "index_path": str(state["index_path"]),
         }
+
+    @app.get("/pingz", response_model=PingzResponse)
+    def pingz() -> PingzResponse:
+        started = time.perf_counter()
+        state["pingz_requests_total"] += 1
+        latency_ms = (time.perf_counter() - started) * 1000
+        return PingzResponse(
+            status="ok",
+            latency_ms=latency_ms,
+            timestamp_utc=datetime.now(tz=UTC).isoformat(),
+        )
 
     @app.get("/readyz", response_model=ReadyResponse)
     def readyz() -> JSONResponse:
@@ -375,6 +396,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     def stats() -> StatsResponse:
         counters = {
             "health": state["health_requests_total"],
+            "pingz": state["pingz_requests_total"],
             "ready": state["ready_requests_total"],
             "ask": state["ask_requests_total"],
             "ingest": state["ingest_requests_total"],
