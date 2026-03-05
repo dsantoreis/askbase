@@ -213,6 +213,21 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_ingest_errors_total Total number of /ingest requests failed.",
         "# TYPE rag_api_ingest_errors_total counter",
         f"rag_api_ingest_errors_total {state['ingest_errors_total']}",
+        "# HELP rag_api_version_requests_total Total number of /version requests.",
+        "# TYPE rag_api_version_requests_total counter",
+        f"rag_api_version_requests_total {state['version_requests_total']}",
+        "# HELP rag_api_build_info_requests_total Total number of /build-info requests.",
+        "# TYPE rag_api_build_info_requests_total counter",
+        f"rag_api_build_info_requests_total {state['build_info_requests_total']}",
+        "# HELP rag_api_build_lite_requests_total Total number of /build-lite requests.",
+        "# TYPE rag_api_build_lite_requests_total counter",
+        f"rag_api_build_lite_requests_total {state['build_lite_requests_total']}",
+        "# HELP rag_api_metrics_requests_total Total number of /metrics requests.",
+        "# TYPE rag_api_metrics_requests_total counter",
+        f"rag_api_metrics_requests_total {state['metrics_requests_total']}",
+        "# HELP rag_api_stats_requests_total Total number of /stats requests.",
+        "# TYPE rag_api_stats_requests_total counter",
+        f"rag_api_stats_requests_total {state['stats_requests_total']}",
     ]
 
     if state["ask_latency_seconds"]:
@@ -281,6 +296,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "diag_lite_requests_total": 0,
         "openapi_lite_requests_total": 0,
         "routes_hash_requests_total": 0,
+        "version_requests_total": 0,
+        "build_info_requests_total": 0,
+        "build_lite_requests_total": 0,
+        "metrics_requests_total": 0,
+        "stats_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_latency_seconds": [],
@@ -415,6 +435,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/version", response_model=VersionResponse)
     def version() -> VersionResponse:
+        state["version_requests_total"] += 1
         return VersionResponse(
             app_version=app.version,
             index_path=str(state["index_path"]),
@@ -422,6 +443,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/build-info", response_model=BuildInfoResponse)
     def build_info() -> BuildInfoResponse:
+        state["build_info_requests_total"] += 1
         return BuildInfoResponse(
             app_version=app.version,
             index_path=str(state["index_path"]),
@@ -430,6 +452,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/build-lite", response_model=BuildLiteResponse)
     def build_lite() -> BuildLiteResponse:
+        state["build_lite_requests_total"] += 1
         return BuildLiteResponse(
             app_version=app.version,
             started_at=state["started_at_iso"],
@@ -554,6 +577,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/metrics")
     def metrics() -> Response:
+        state["metrics_requests_total"] += 1
         return Response(
             content=_render_metrics(state),
             media_type="text/plain; version=0.0.4; charset=utf-8",
@@ -561,6 +585,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
 
     @app.get("/stats", response_model=StatsResponse)
     def stats() -> StatsResponse:
+        state["stats_requests_total"] += 1
         counters = {
             "health": state["health_requests_total"],
             "healthz_lite": state["healthz_lite_requests_total"],
@@ -580,6 +605,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "diag_lite": state["diag_lite_requests_total"],
             "openapi_lite": state["openapi_lite_requests_total"],
             "routes_hash": state["routes_hash_requests_total"],
+            "version": state["version_requests_total"],
+            "build_info": state["build_info_requests_total"],
+            "build_lite": state["build_lite_requests_total"],
+            "metrics": state["metrics_requests_total"],
+            "stats": state["stats_requests_total"],
         }
         return StatsResponse(
             status="ok",

@@ -196,12 +196,19 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "diag_lite": 1,
         "openapi_lite": 1,
         "routes_hash": 2,
+        "version": 1,
+        "build_info": 1,
+        "build_lite": 1,
+        "metrics": 0,
+        "stats": 1,
     }
-    assert stats_before_ask_payload["requests_total"] == 15
+    assert stats_before_ask_payload["requests_total"] == 19
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
+    assert "rag_api_version_requests_total 1" in metrics.text
+    assert "rag_api_metrics_requests_total 1" in metrics.text
 
     res = client.post("/ask", json={"query": "How solve VPN issues?", "top_k": 2})
     assert res.status_code == 200
@@ -226,7 +233,9 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 2
-    assert stats_after_ask_payload["requests_total"] == 17
+    assert stats_after_ask_payload["counters"]["metrics"] == 2
+    assert stats_after_ask_payload["counters"]["stats"] == 2
+    assert stats_after_ask_payload["requests_total"] == 24
 
 
 def test_api_rejects_blank_query_with_422(tmp_path: Path):
@@ -372,8 +381,13 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "diag_lite": 1,
         "openapi_lite": 0,
         "routes_hash": 0,
+        "version": 0,
+        "build_info": 0,
+        "build_lite": 1,
+        "metrics": 0,
+        "stats": 1,
     }
-    assert stats_payload["requests_total"] == 10
+    assert stats_payload["requests_total"] == 12
 
 
 def test_api_ingest_then_ask(tmp_path: Path):
