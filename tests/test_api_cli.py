@@ -53,3 +53,11 @@ def test_metrics_exposed(tmp_path: Path) -> None:
     res = client.get("/metrics")
     assert res.status_code == 200
     assert "rag_http_requests_total" in res.text
+
+
+def test_health_head_probe(tmp_path: Path) -> None:
+    app = create_app(index_path=str(tmp_path / "idx.pkl"))
+    client = TestClient(app)
+    res = client.head("/health")
+    assert res.status_code == 200
+    assert res.text == ""

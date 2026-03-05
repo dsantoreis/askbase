@@ -49,7 +49,7 @@ def create_app(index_path: str = "artifacts/rag_index.pkl") -> FastAPI:
         request.state.rate_limit = {"limit": limit, "remaining": remaining}
         return state["auth"].authenticate(request)
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     def health() -> dict:
         return {"status": "ok", "index_loaded": state["rag"] is not None}
 
