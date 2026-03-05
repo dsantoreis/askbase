@@ -402,6 +402,8 @@ def test_api_ask_safe_requires_citations(tmp_path: Path):
     stats = client.get("/stats")
     assert stats.status_code == 200
     stats_payload = stats.json()
+    assert stats_payload["counters"]["ask"] == 0
+    assert stats_payload["counters"]["ask_errors"] == 0
     assert stats_payload["counters"]["ask_safe"] == 2
     assert stats_payload["counters"]["ask_safe_errors"] == 1
 

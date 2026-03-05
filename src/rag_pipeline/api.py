@@ -838,16 +838,16 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             chunks_indexed=len(chunks), index_path=str(state["index_path"])
         )
 
-    @app.post("/ask", response_model=AskResponse)
-    def ask(req: AskRequest) -> AskResponse:
-        state["ask_requests_total"] += 1
+    def _answer(req: AskRequest, *, record_ask_metrics: bool) -> AskResponse:
         started = time.perf_counter()
         rag = state["rag"]
         if rag is None:
-            state["ask_errors_total"] += 1
+            if record_ask_metrics:
+                state["ask_errors_total"] += 1
             raise HTTPException(
                 status_code=400, detail="index not loaded; run ingest first"
             )
+
         result = rag.answer_with_citations(
             req.query,
             top_k=req.top_k,
@@ -855,7 +855,9 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             doc_id=req.doc_id,
             doc_id_contains=req.doc_id_contains,
         )
-        _record_latency(state["ask_latency_seconds"], time.perf_counter() - started)
+        if record_ask_metrics:
+            _record_latency(state["ask_latency_seconds"], time.perf_counter() - started)
+
         citations = citations_to_dict(result.citations)
         return AskResponse(
             answer=result.answer,
@@ -863,10 +865,20 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             citations_count=len(citations),
         )
 
+    @app.post("/ask", response_model=AskResponse)
+    def ask(req: AskRequest) -> AskResponse:
+        state["ask_requests_total"] += 1
+        return _answer(req, record_ask_metrics=True)
+
     @app.post("/ask-safe", response_model=AskResponse)
     def ask_safe(req: AskRequest) -> AskResponse:
         state["ask_safe_requests_total"] += 1
-        response = ask(req)
+        try:
+            response = _answer(req, record_ask_metrics=False)
+        except HTTPException:
+            state["ask_safe_errors_total"] += 1
+            raise
+
         if not response.citations:
             state["ask_safe_errors_total"] += 1
             raise HTTPException(
