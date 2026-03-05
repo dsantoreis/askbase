@@ -30,6 +30,16 @@ class AskRequest(BaseModel):
             raise ValueError("query must not be blank")
         return normalized
 
+    @field_validator("doc_id_contains")
+    @classmethod
+    def validate_doc_id_contains_not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("doc_id_contains must not be blank")
+        return normalized
+
 
 class AskResponse(BaseModel):
     answer: str

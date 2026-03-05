@@ -237,6 +237,32 @@ def test_api_rejects_blank_query_with_422(tmp_path: Path):
     assert res.status_code == 422
 
 
+def test_api_rejects_blank_doc_id_contains_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text(
+        "Runbook: recurring MFA failures are fixed by resetting enrollment.",
+        encoding="utf-8",
+    )
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post(
+        "/ask",
+        json={
+            "query": "How to solve MFA failures?",
+            "top_k": 1,
+            "doc_id_contains": "   ",
+        },
+    )
+    assert res.status_code == 422
+
+
 def test_api_ask_without_index_returns_400(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)
@@ -469,6 +495,29 @@ def test_cli_rejects_blank_query(tmp_path: Path):
             "   ",
             "--index",
             str(index),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must not be blank" in ask.stderr
+
+
+def test_cli_rejects_blank_doc_id_contains(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--doc-id-contains",
+            "   ",
         ],
         capture_output=True,
         text=True,

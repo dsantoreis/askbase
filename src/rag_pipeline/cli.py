@@ -58,7 +58,7 @@ def main() -> None:
     ask.add_argument("--index", default="rag_index.pkl")
     ask.add_argument("--top-k", type=_positive_int, default=3)
     ask.add_argument("--min-score", type=_non_negative_float, default=0.0)
-    ask.add_argument("--doc-id-contains")
+    ask.add_argument("--doc-id-contains", type=_non_blank_text)
     ask.add_argument("--json", action="store_true")
 
     evaluate = sub.add_parser("evaluate")
