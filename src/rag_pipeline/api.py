@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field, field_validator
 from .chunking import chunk_text
 from .pipeline import RAGPipeline, citations_to_dict
 
+LATENCY_HISTORY_LIMIT = 1000
+
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=1)
@@ -298,6 +300,13 @@ def _stable_routes_hash(routes: list[OpenApiLiteRoute]) -> str:
         ensure_ascii=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _record_latency(samples: list[float], value: float) -> None:
+    samples.append(value)
+    overflow = len(samples) - LATENCY_HISTORY_LIMIT
+    if overflow > 0:
+        del samples[:overflow]
 
 
 def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
@@ -700,7 +709,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         rag._matrix = rag.vectorizer.fit_transform(texts) if texts else None
         rag._semantic_embeddings = rag._encode_semantic_texts(texts)
         rag.save(state["index_path"])
-        state["ingest_latency_seconds"].append(time.perf_counter() - started)
+        _record_latency(state["ingest_latency_seconds"], time.perf_counter() - started)
 
         return IngestResponse(
             chunks_indexed=len(chunks), index_path=str(state["index_path"])
@@ -723,7 +732,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             doc_id=req.doc_id,
             doc_id_contains=req.doc_id_contains,
         )
-        state["ask_latency_seconds"].append(time.perf_counter() - started)
+        _record_latency(state["ask_latency_seconds"], time.perf_counter() - started)
         return AskResponse(
             answer=result.answer, citations=citations_to_dict(result.citations)
         )

@@ -827,6 +827,39 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     assert all("ops" in c["doc_id"].lower() for c in doc_filter_payload["citations"])
 
 
+def test_api_retains_only_recent_latency_samples(tmp_path: Path, monkeypatch):
+    import rag_pipeline.api as api_module
+
+    monkeypatch.setattr(api_module, "LATENCY_HISTORY_LIMIT", 3)
+
+    index = tmp_path / "api_latency_limit.pkl"
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    for idx in range(4):
+        ingest_res = client.post(
+            "/ingest",
+            json={
+                "doc_id": f"runbook:{idx}",
+                "text": f"Runbook {idx}: recurring MFA failure resolution with identity checks.",
+            },
+        )
+        assert ingest_res.status_code == 200
+
+    for _ in range(5):
+        ask_res = client.post(
+            "/ask",
+            json={"query": "How to resolve recurring MFA failures?", "top_k": 1},
+        )
+        assert ask_res.status_code == 200
+
+    stats = client.get("/stats")
+    assert stats.status_code == 200
+    payload = stats.json()
+    assert payload["ingest_latency_samples"] == 3
+    assert payload["ask_latency_samples"] == 3
+
+
 def test_api_ingest_recomputes_semantic_embeddings(tmp_path: Path, monkeypatch):
     class FakeSentenceTransformer:
         def __init__(self, *_args, **_kwargs):
