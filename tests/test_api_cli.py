@@ -157,6 +157,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/build-lite"] == {"GET"}
     assert routes["/diag-lite"] == {"GET"}
     assert routes["/ask"] == {"POST"}
+    assert routes["/ask-safe"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
     assert "components" not in str(openapi_lite_payload).lower()
 
@@ -261,6 +262,47 @@ def test_api_rejects_blank_query_with_422(tmp_path: Path):
 
     res = client.post("/ask", json={"query": "   ", "top_k": 1})
     assert res.status_code == 422
+
+
+def test_api_rejects_too_long_query_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post("/ask", json={"query": "x" * 2001, "top_k": 1})
+    assert res.status_code == 422
+
+
+def test_api_ask_safe_requires_citations(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("Runbook for MFA enrollment reset.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    no_match = client.post(
+        "/ask-safe",
+        json={"query": "Unrelated query", "top_k": 2, "min_score": 10.0},
+    )
+    assert no_match.status_code == 404
+    assert "no matching citations" in no_match.json()["detail"]
+
+    matched = client.post("/ask-safe", json={"query": "MFA reset", "top_k": 2})
+    assert matched.status_code == 200
+    matched_payload = matched.json()
+    assert matched_payload["citations"]
 
 
 def test_api_rejects_blank_doc_id_with_422(tmp_path: Path):
@@ -825,7 +867,9 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     )
     doc_exact_payload = json.loads(ask_doc_exact.stdout)
     assert len(doc_exact_payload["citations"]) >= 1
-    assert all(c["doc_id"] == str(docs / "ops.md") for c in doc_exact_payload["citations"])
+    assert all(
+        c["doc_id"] == str(docs / "ops.md") for c in doc_exact_payload["citations"]
+    )
 
     ask_doc_filter = subprocess.run(
         [
@@ -897,7 +941,9 @@ def test_api_ingest_recomputes_semantic_embeddings(tmp_path: Path, monkeypatch):
             }
             return [vectors.get(text, [0.0, 0.0]) for text in texts]
 
-    fake_module = type("_FakeSentenceModule", (), {"SentenceTransformer": FakeSentenceTransformer})
+    fake_module = type(
+        "_FakeSentenceModule", (), {"SentenceTransformer": FakeSentenceTransformer}
+    )
     monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
 
     seed_doc = tmp_path / "seed.txt"

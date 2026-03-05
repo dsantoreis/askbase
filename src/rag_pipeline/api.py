@@ -16,10 +16,11 @@ from .chunking import chunk_text
 from .pipeline import RAGPipeline, citations_to_dict
 
 LATENCY_HISTORY_LIMIT = 1000
+ASK_QUERY_MAX_CHARS = 2000
 
 
 class AskRequest(BaseModel):
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=ASK_QUERY_MAX_CHARS)
     top_k: int = Field(default=3, ge=1, le=20)
     min_score: float = Field(default=0.0, ge=0.0)
     doc_id: str | None = Field(default=None, min_length=1)
@@ -742,5 +743,18 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return AskResponse(
             answer=result.answer, citations=citations_to_dict(result.citations)
         )
+
+    @app.post("/ask-safe", response_model=AskResponse)
+    def ask_safe(req: AskRequest) -> AskResponse:
+        response = ask(req)
+        if not response.citations:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "no matching citations found for query; "
+                    "relax min_score or adjust filters"
+                ),
+            )
+        return response
 
     return app
