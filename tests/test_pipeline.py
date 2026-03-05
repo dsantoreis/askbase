@@ -145,6 +145,22 @@ def test_retrieve_rejects_doc_id_and_doc_id_contains_together(sample_docs: list[
         rag.retrieve("audit evidence", doc_id="policy.md", doc_id_contains="policy")
 
 
+def test_retrieve_rejects_blank_doc_id(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="doc_id must not be blank"):
+        rag.retrieve("MFA identity verification", top_k=3, doc_id="   ")
+
+
+def test_retrieve_rejects_blank_doc_id_contains(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="doc_id_contains must not be blank"):
+        rag.retrieve("MFA identity verification", top_k=3, doc_id_contains="   ")
+
+
 def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
     rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
     rag.ingest_paths(sample_docs)
@@ -153,7 +169,9 @@ def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
     assert baseline_hits
 
     threshold = max(hit["score"] for hit in baseline_hits) + 0.01
-    filtered_hits = rag.retrieve("audit evidence retention", top_k=3, min_score=threshold)
+    filtered_hits = rag.retrieve(
+        "audit evidence retention", top_k=3, min_score=threshold
+    )
     assert filtered_hits == []
 
 

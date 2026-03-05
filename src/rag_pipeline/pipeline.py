@@ -106,10 +106,17 @@ class RAGPipeline:
             raise ValueError("top_k must be >= 1")
         if min_score < 0:
             raise ValueError("min_score must be >= 0")
-        if doc_id and doc_id_contains:
-            raise ValueError("use either doc_id or doc_id_contains, not both")
+        if doc_id is not None and not doc_id.strip():
+            raise ValueError("doc_id must not be blank")
+        if doc_id_contains is not None and not doc_id_contains.strip():
+            raise ValueError("doc_id_contains must not be blank")
+
         normalized_doc_id = doc_id.strip().lower() if doc_id else ""
-        normalized_doc_filter = doc_id_contains.strip().lower() if doc_id_contains else ""
+        normalized_doc_filter = (
+            doc_id_contains.strip().lower() if doc_id_contains else ""
+        )
+        if normalized_doc_id and normalized_doc_filter:
+            raise ValueError("use either doc_id or doc_id_contains, not both")
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
 
@@ -122,7 +129,10 @@ class RAGPipeline:
         for i, chunk in enumerate(self.chunks):
             if normalized_doc_id and chunk.doc_id.lower() != normalized_doc_id:
                 continue
-            if normalized_doc_filter and normalized_doc_filter not in chunk.doc_id.lower():
+            if (
+                normalized_doc_filter
+                and normalized_doc_filter not in chunk.doc_id.lower()
+            ):
                 continue
             chunk_terms = set(_normalize_terms(chunk.text))
             matched_terms = sorted(query_terms.intersection(chunk_terms))
