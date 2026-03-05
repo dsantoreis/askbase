@@ -137,6 +137,14 @@ def test_retrieve_rejects_negative_min_score(sample_docs: list[Path]):
         rag.retrieve("any query", min_score=-0.01)
 
 
+def test_retrieve_rejects_doc_id_and_doc_id_contains_together(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="use either doc_id or doc_id_contains"):
+        rag.retrieve("audit evidence", doc_id="policy.md", doc_id_contains="policy")
+
+
 def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
     rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
     rag.ingest_paths(sample_docs)

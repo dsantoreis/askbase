@@ -96,6 +96,9 @@ def main() -> None:
         return
 
     if args.command == "ask":
+        if args.doc_id and args.doc_id_contains:
+            raise SystemExit("use either --doc-id or --doc-id-contains, not both")
+
         index = Path(args.index)
         if not index.exists():
             raise SystemExit(f"Index not found: {index}. Run ingest first.")

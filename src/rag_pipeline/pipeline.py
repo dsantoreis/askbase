@@ -106,6 +106,8 @@ class RAGPipeline:
             raise ValueError("top_k must be >= 1")
         if min_score < 0:
             raise ValueError("min_score must be >= 0")
+        if doc_id and doc_id_contains:
+            raise ValueError("use either doc_id or doc_id_contains, not both")
         normalized_doc_id = doc_id.strip().lower() if doc_id else ""
         normalized_doc_filter = doc_id_contains.strip().lower() if doc_id_contains else ""
         if not query.strip() or self._matrix is None or not self.chunks:

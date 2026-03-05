@@ -766,6 +766,31 @@ def test_cli_rejects_blank_doc_id_contains(tmp_path: Path):
     assert "must not be blank" in ask.stderr
 
 
+def test_cli_rejects_doc_id_and_doc_id_contains_together(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--doc-id",
+            "runbook:mfa",
+            "--doc-id-contains",
+            "runbook",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "use either --doc-id or --doc-id-contains" in ask.stderr
+
+
 def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()
