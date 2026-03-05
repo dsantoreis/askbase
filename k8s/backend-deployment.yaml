@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-backend
+  namespace: rag-enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rag-backend
+  template:
+    metadata:
+      labels:
+        app: rag-backend
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/owner/rag-pipeline-demo-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RAG_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rag-secrets
+                  key: adminToken
+            - name: RAG_USER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rag-secrets
+                  key: userToken
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-backend
+  namespace: rag-enterprise
+spec:
+  selector:
+    app: rag-backend
+  ports:
+    - port: 80
+      targetPort: 8080

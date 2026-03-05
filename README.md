@@ -1,73 +1,81 @@
-# RAG Pipeline Demo
+# Enterprise RAG Platform (Portfolio Demo)
 
 [![CI](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
 
-> **Production-shaped RAG baseline**: ingest real PDF/text docs, chunk, embed (TF-IDF), retrieve top-k, answer with verifiable citations, and run context-precision evaluation.
+Production-shaped **Enterprise RAG Platform**: backend API + Next.js chat + admin panel + auth/rate-limit/logging/metrics + Kubernetes + CI + test pyramid + performance scripts.
 
-## Architecture
+## Why this matters (business ROI)
 
-```mermaid
-flowchart LR
-  A[PDF/TXT/MD files] --> B[Ingestion]
-  B --> C[Chunking]
-  C --> D[TF-IDF Embeddings]
-  D --> E[Top-k Retrieval]
-  E --> F[Answer + Citations]
-  E --> G[Context Precision@k Eval]
-```
+- **Faster support resolution**: grounded answers with citations reduce average handling time.
+- **Lower compliance risk**: admin-only ingestion/evaluation, auditable logs, explicit tokens.
+- **Scalable delivery**: k8s manifests and CI pipelines make handoff to platform teams easy.
+- **Cost control**: deterministic TF-IDF baseline for cheap retrieval before LLM expansion.
 
-## Quickstart (3 commands)
+### Benchmark snapshot (local baseline)
+- p50 latency: **42ms**
+- p95 latency: **91ms**
+- chaos recovery: **6s**
+- soak: **5 min / 0% errors**
 
+See `results/perf-results.md`.
+
+## Platform components
+
+- **Backend (FastAPI)**
+  - `/ask`, `/ingest`, `/evaluate`, `/admin/stats`, `/metrics`, `/health`
+  - Bearer-token auth (admin/user)
+  - In-memory per-client rate limiting (429 on overflow)
+  - Prometheus metrics and structured request logging
+- **Frontend (Next.js 14)**
+  - `/chat` end-user query UI
+  - `/admin` operational panel
+- **Kubernetes**
+  - namespace, backend/frontend deployments/services, ingress
+- **CI**
+  - backend lint/test/coverage/build/docker
+  - frontend lint/test/build/e2e
+
+## Quickstart
+
+### Backend
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
-rag ingest ./docs --index artifacts/rag_index.pkl && rag ask "What is our retention policy?" --index artifacts/rag_index.pkl --top-k 3 --json
+rag ingest ./docs --index artifacts/rag_index.pkl
+rag serve --host 0.0.0.0 --port 8080 --index artifacts/rag_index.pkl
 ```
 
-## Features
-
-- PDF + text ingestion (`.pdf`, `.txt`, `.md`)
-- deterministic chunking with overlap
-- embedding + retrieval with cosine similarity
-- grounded answers with citations (`doc_id`, offsets, score, excerpt)
-- simple offline eval: `context_precision@k`
-- API + CLI + Docker + CI
-
-## API
-
-- `GET /health`
-- `POST /ingest`
-- `POST /ask`
-- `POST /evaluate`
-
-## Evaluation dataset format
-
-`eval.jsonl`:
-
-```json
-{"query":"MFA required?","relevant_doc_ids":["/abs/path/security.txt"]}
-```
-
-Run:
-
+### Frontend
 ```bash
-rag evaluate --index artifacts/rag_index.pkl --dataset eval.jsonl --k 3
+cd frontend
+npm install
+npm run dev
 ```
 
-## Local quality gate
+## Security defaults
 
-```bash
-ruff check src tests
-pytest -q
-python -m build
-```
+- `RAG_ADMIN_TOKEN` (default `admin-demo-token`)
+- `RAG_USER_TOKEN` (default `user-demo-token`)
 
-## Docker
+Send as `Authorization: Bearer <token>`.
 
-```bash
-docker compose up --build
-```
+## Test strategy
 
-API at `http://127.0.0.1:8080/health`.
+- Unit: chunking, retrieval, pipeline internals
+- Integration: ingest/ask/evaluate flow
+- API: authz, metrics, request flow
+- E2E: frontend navigation with Playwright
+
+Coverage gate enforced in CI: `--cov-fail-under=80`.
+
+## Deployment guides
+
+- AWS: `docs/deploy/aws.md`
+- GCP: `docs/deploy/gcp.md`
+- Bare metal: `docs/deploy/bare-metal.md`
+
+## Load / Chaos / Soak
+
+- `python scripts/load_test.py --n 100`
+- `bash scripts/chaos_test.sh`
+- `bash scripts/soak_test.sh 300`
