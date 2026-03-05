@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from .chunking import chunk_text
@@ -71,6 +72,17 @@ class StatsResponse(BaseModel):
     counters: dict[str, int]
 
 
+class OpenApiLiteRoute(BaseModel):
+    path: str
+    methods: list[str]
+
+
+class OpenApiLiteResponse(BaseModel):
+    status: str
+    app_version: str
+    routes: list[OpenApiLiteRoute]
+
+
 def _render_metrics(state: dict) -> str:
     uptime_seconds = time.monotonic() - state["started_at"]
     index_loaded = 1 if state["rag"] is not None else 0
@@ -117,6 +129,19 @@ def _render_metrics(state: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _safe_route_summary(app: FastAPI) -> list[OpenApiLiteRoute]:
+    routes: list[OpenApiLiteRoute] = []
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        if not route.include_in_schema:
+            continue
+        methods = sorted(m for m in route.methods if m not in {"HEAD", "OPTIONS"})
+        routes.append(OpenApiLiteRoute(path=route.path, methods=methods))
+
+    return sorted(routes, key=lambda item: item.path)
+
+
 def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     app = FastAPI(title="RAG Pipeline Demo API", version="1.2.0")
     index = Path(index_path)
@@ -128,6 +153,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "health_requests_total": 0,
         "ready_requests_total": 0,
         "diag_requests_total": 0,
+        "openapi_lite_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_latency_seconds": [],
@@ -267,6 +293,15 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             artifacts_snapshot=artifacts_snapshot,
         )
 
+    @app.get("/openapi-lite", response_model=OpenApiLiteResponse)
+    def openapi_lite() -> OpenApiLiteResponse:
+        state["openapi_lite_requests_total"] += 1
+        return OpenApiLiteResponse(
+            status="ok",
+            app_version=app.version,
+            routes=_safe_route_summary(app),
+        )
+
     @app.get("/metrics")
     def metrics() -> Response:
         return Response(
@@ -282,6 +317,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "ask": state["ask_requests_total"],
             "ingest": state["ingest_requests_total"],
             "diag": state["diag_requests_total"],
+            "openapi_lite": state["openapi_lite_requests_total"],
         }
         return StatsResponse(
             status="ok",

@@ -27,7 +27,7 @@ RAG pronto para propostas comerciais de **suporte interno, compliance e knowledg
 - API e CLI de produção:
   - CLI: `ingest`, `ask`, `evaluate`, `serve`
   - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/version`, `/build-info`, `/ask` (resposta com citations)
+  - API FastAPI: `/health`, `/readyz`, `/version`, `/build-info`, `/diag`, `/openapi-lite`, `/stats`, `/metrics`, `/ingest`, `/ask`
 - Observabilidade:
   - logs estruturados em JSON
   - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
@@ -112,6 +112,7 @@ Endpoints:
 - `GET /version`
 - `GET /build-info` (versão + index ativo + timestamp de boot da API)
 - `GET /diag` (snapshot seguro de índice/artefatos; sem conteúdo de documentos)
+- `GET /openapi-lite` (resumo seguro de rotas/métodos disponíveis; sem schema OpenAPI completo)
 - `GET /stats` (contadores agregados por endpoint + uptime)
 - `GET /metrics`
 - `POST /ingest`
@@ -129,7 +130,7 @@ curl -X POST http://127.0.0.1:8080/ask \
   -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
 ```
 
-### Runbook rápido (health + readyz + version + build-info + diag + stats + metrics)
+### Runbook rápido (health + readyz + version + build-info + diag + openapi-lite + stats + metrics)
 
 ```bash
 # 1) Health check
@@ -147,18 +148,22 @@ curl -s http://127.0.0.1:8080/build-info | jq .
 # 5) Diagnóstico seguro (somente metadados de índice/artefatos)
 curl -s http://127.0.0.1:8080/diag | jq .
 
-# 6) Estatísticas agregadas de API (counters + uptime)
+# 6) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
+curl -s http://127.0.0.1:8080/openapi-lite | jq .
+
+# 7) Estatísticas agregadas de API (counters + uptime)
 curl -s http://127.0.0.1:8080/stats | jq .
 
-# 7) Métricas estilo Prometheus
+# 8) Métricas estilo Prometheus
 curl -s http://127.0.0.1:8080/metrics
 
-# 8) Sanidade fim-a-fim (health + readyz + version + build-info + diag + stats + ask + metrics)
+# 9) Sanidade fim-a-fim (health + readyz + version + build-info + diag + openapi-lite + stats + ask + metrics)
 curl -s http://127.0.0.1:8080/health | jq .status
 curl -s http://127.0.0.1:8080/readyz | jq .status
 curl -s http://127.0.0.1:8080/version | jq .app_version
 curl -s http://127.0.0.1:8080/build-info | jq .started_at
 curl -s http://127.0.0.1:8080/diag | jq '.index_snapshot.chunks_count'
+curl -s http://127.0.0.1:8080/openapi-lite | jq '.routes | length'
 curl -s http://127.0.0.1:8080/stats | jq '.counters'
 curl -s -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
@@ -229,7 +234,7 @@ npm run test:persistence-smoke
 - [ ] `npm run quality:full` passou localmente
 - [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
 - [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /stats` + `POST /ask` testados
+- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /readyz` + `GET /version` + `GET /build-info` + `GET /diag` + `GET /openapi-lite` + `GET /stats` + `POST /ask` testados
 - [ ] README atualizado com comandos finais de validação
 
 ---

@@ -68,6 +68,19 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert ready_payload["artifacts_dir_exists"] is True
     assert ready_payload["artifacts_dir_writable"] is True
 
+    openapi_lite = client.get("/openapi-lite")
+    assert openapi_lite.status_code == 200
+    openapi_lite_payload = openapi_lite.json()
+    assert openapi_lite_payload["status"] == "ok"
+    assert openapi_lite_payload["app_version"] == "1.2.0"
+    routes = {
+        item["path"]: set(item["methods"]) for item in openapi_lite_payload["routes"]
+    }
+    assert routes["/health"] == {"GET"}
+    assert routes["/ask"] == {"POST"}
+    assert "openapi" not in openapi_lite_payload
+    assert "components" not in str(openapi_lite_payload).lower()
+
     stats_before_ask = client.get("/stats")
     assert stats_before_ask.status_code == 200
     stats_before_ask_payload = stats_before_ask.json()
@@ -79,8 +92,9 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "ask": 0,
         "ingest": 0,
         "diag": 1,
+        "openapi_lite": 1,
     }
-    assert stats_before_ask_payload["requests_total"] == 3
+    assert stats_before_ask_payload["requests_total"] == 4
 
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
@@ -100,7 +114,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
     assert stats_after_ask_payload["counters"]["ask"] == 1
-    assert stats_after_ask_payload["requests_total"] == 4
+    assert stats_after_ask_payload["requests_total"] == 5
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -132,6 +146,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "ask": 1,
         "ingest": 0,
         "diag": 1,
+        "openapi_lite": 0,
     }
     assert stats_payload["requests_total"] == 3
 
