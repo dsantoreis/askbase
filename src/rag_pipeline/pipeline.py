@@ -93,9 +93,13 @@ class RAGPipeline:
         logger.info("ingest_complete", extra={"chunks": len(self.chunks)})
         return len(self.chunks)
 
-    def retrieve(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def retrieve(
+        self, query: str, top_k: int = 3, min_score: float = 0.0
+    ) -> list[dict[str, Any]]:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
+        if min_score < 0:
+            raise ValueError("min_score must be >= 0")
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
 
@@ -123,7 +127,7 @@ class RAGPipeline:
                 hybrid_score + self.retrieval_config.rerank_boost * rerank_bonus
             )
 
-            if final_score > 0:
+            if final_score >= max(min_score, 0.0):
                 ranked.append(
                     {
                         "chunk": chunk,
@@ -137,8 +141,10 @@ class RAGPipeline:
         ranked.sort(key=lambda item: item["score"], reverse=True)
         return ranked[:top_k]
 
-    def answer_with_citations(self, query: str, top_k: int = 3) -> AnswerResult:
-        hits = self.retrieve(query, top_k=top_k)
+    def answer_with_citations(
+        self, query: str, top_k: int = 3, min_score: float = 0.0
+    ) -> AnswerResult:
+        hits = self.retrieve(query, top_k=top_k, min_score=min_score)
         if not hits:
             return AnswerResult(
                 answer="Não encontrei contexto relevante para responder.", citations=[]
@@ -165,8 +171,10 @@ class RAGPipeline:
         )
         return AnswerResult(answer=answer, citations=citations)
 
-    def answer(self, query: str, top_k: int = 3) -> str:
-        return self.answer_with_citations(query, top_k=top_k).answer
+    def answer(self, query: str, top_k: int = 3, min_score: float = 0.0) -> str:
+        return self.answer_with_citations(
+            query, top_k=top_k, min_score=min_score
+        ).answer
 
     def evaluate_precision_at_k(
         self, dataset_path: str | Path, k: int = 3

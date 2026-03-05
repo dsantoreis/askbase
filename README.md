@@ -80,9 +80,11 @@ python -m rag_pipeline.cli ingest data \
 ```bash
 python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" \
   --index artifacts/rag_index.pkl \
-  --top-k 3
+  --top-k 3 \
+  --min-score 0.05
 
 # saída também lista citations com doc_id, intervalo e score
+# --min-score filtra chunks de baixa confiança (default: 0.0)
 ```
 
 ### 3) Avaliação offline (`precision@k`)
@@ -139,7 +141,7 @@ curl -X POST http://127.0.0.1:8080/ingest \
 
 curl -X POST http://127.0.0.1:8080/ask \
   -H 'Content-Type: application/json' \
-  -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3}'
+  -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3,"min_score":0.05}'
 ```
 
 ### Runbook rápido (health + healthz-lite + alivez + echoz + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + metrics)

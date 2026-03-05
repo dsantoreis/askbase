@@ -19,6 +19,7 @@ from .pipeline import RAGPipeline, citations_to_dict
 class AskRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int = Field(default=3, ge=1, le=20)
+    min_score: float = Field(default=0.0, ge=0.0)
 
 
 class AskResponse(BaseModel):
@@ -579,7 +580,11 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="index not loaded; run ingest first"
             )
-        result = rag.answer_with_citations(req.query, top_k=req.top_k)
+        result = rag.answer_with_citations(
+            req.query,
+            top_k=req.top_k,
+            min_score=req.min_score,
+        )
         state["ask_latency_seconds"].append(time.perf_counter() - started)
         return AskResponse(
             answer=result.answer, citations=citations_to_dict(result.citations)

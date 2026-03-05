@@ -18,6 +18,13 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _non_negative_float(value: str) -> float:
+    parsed = float(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be >= 0")
+    return parsed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Enterprise-ready local RAG pipeline")
     parser.add_argument("--log-level", default="INFO")
@@ -43,6 +50,7 @@ def main() -> None:
     ask.add_argument("query")
     ask.add_argument("--index", default="rag_index.pkl")
     ask.add_argument("--top-k", type=_positive_int, default=3)
+    ask.add_argument("--min-score", type=_non_negative_float, default=0.0)
     ask.add_argument("--json", action="store_true")
 
     evaluate = sub.add_parser("evaluate")
@@ -83,7 +91,11 @@ def main() -> None:
         if not index.exists():
             raise SystemExit(f"Index not found: {index}. Run ingest first.")
         rag = RAGPipeline.load(index)
-        result = rag.answer_with_citations(args.query, top_k=args.top_k)
+        result = rag.answer_with_citations(
+            args.query,
+            top_k=args.top_k,
+            min_score=args.min_score,
+        )
         if args.json:
             print(
                 json.dumps(

@@ -202,14 +202,23 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert "citations" in body
     assert len(body["citations"]) >= 1
 
+    min_score_filtered = client.post(
+        "/ask",
+        json={"query": "How solve VPN issues?", "top_k": 2, "min_score": 10.0},
+    )
+    assert min_score_filtered.status_code == 200
+    min_score_filtered_payload = min_score_filtered.json()
+    assert min_score_filtered_payload["citations"] == []
+    assert "Não encontrei contexto relevante" in min_score_filtered_payload["answer"]
+
     metrics_after_ask = client.get("/metrics")
-    assert "rag_api_ask_requests_total 1" in metrics_after_ask.text
+    assert "rag_api_ask_requests_total 2" in metrics_after_ask.text
 
     stats_after_ask = client.get("/stats")
     assert stats_after_ask.status_code == 200
     stats_after_ask_payload = stats_after_ask.json()
-    assert stats_after_ask_payload["counters"]["ask"] == 1
-    assert stats_after_ask_payload["requests_total"] == 10
+    assert stats_after_ask_payload["counters"]["ask"] == 2
+    assert stats_after_ask_payload["requests_total"] == 11
 
 
 def test_api_ask_without_index_returns_400(tmp_path: Path):
@@ -394,6 +403,29 @@ def test_cli_rejects_non_positive_top_k(tmp_path: Path):
     assert "must be >= 1" in ask.stderr
 
 
+def test_cli_rejects_negative_min_score(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--min-score",
+            "-0.1",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must be >= 0" in ask.stderr
+
+
 def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs = tmp_path / "docs"
     docs.mkdir()
@@ -446,3 +478,26 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     assert "answer" in payload
     assert isinstance(payload.get("citations"), list)
     assert len(payload["citations"]) >= 1
+
+    ask_filtered = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "2",
+            "--min-score",
+            "10",
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    filtered_payload = json.loads(ask_filtered.stdout)
+    assert filtered_payload["citations"] == []
+    assert "Não encontrei contexto relevante" in filtered_payload["answer"]

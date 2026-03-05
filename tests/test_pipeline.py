@@ -114,6 +114,26 @@ def test_retrieve_rejects_non_positive_top_k(sample_docs: list[Path]):
         rag.retrieve("any query", top_k=0)
 
 
+def test_retrieve_rejects_negative_min_score(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    with pytest.raises(ValueError, match="min_score must be >= 0"):
+        rag.retrieve("any query", min_score=-0.01)
+
+
+def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    baseline_hits = rag.retrieve("audit evidence retention", top_k=3)
+    assert baseline_hits
+
+    threshold = max(hit["score"] for hit in baseline_hits) + 0.01
+    filtered_hits = rag.retrieve("audit evidence retention", top_k=3, min_score=threshold)
+    assert filtered_hits == []
+
+
 def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path):
     index = tmp_path / "idx.pkl"
     eval_data = tmp_path / "eval.jsonl"
