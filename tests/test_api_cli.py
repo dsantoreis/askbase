@@ -323,6 +323,30 @@ def test_api_rejects_blank_ingest_text_with_422(tmp_path: Path):
     assert res.status_code == 422
 
 
+def test_api_rejects_doc_id_and_doc_id_contains_together_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post(
+        "/ask",
+        json={
+            "query": "How to solve MFA failures?",
+            "top_k": 1,
+            "doc_id": "runbook:mfa",
+            "doc_id_contains": "runbook",
+        },
+    )
+    assert res.status_code == 422
+
+
 def test_api_rejects_blank_ingest_doc_id_with_422(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)

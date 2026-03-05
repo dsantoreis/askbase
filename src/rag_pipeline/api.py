@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .chunking import chunk_text
 from .pipeline import RAGPipeline, citations_to_dict
@@ -24,6 +24,12 @@ class AskRequest(BaseModel):
     min_score: float = Field(default=0.0, ge=0.0)
     doc_id: str | None = Field(default=None, min_length=1)
     doc_id_contains: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_doc_filters_are_mutually_exclusive(self) -> "AskRequest":
+        if self.doc_id is not None and self.doc_id_contains is not None:
+            raise ValueError("use either doc_id or doc_id_contains, not both")
+        return self
 
     @field_validator("query")
     @classmethod
