@@ -38,6 +38,12 @@ class VersionResponse(BaseModel):
     index_path: str
 
 
+class BuildInfoResponse(BaseModel):
+    app_version: str
+    index_path: str
+    started_at: str
+
+
 class ReadyResponse(BaseModel):
     status: str
     index_loaded: bool
@@ -118,6 +124,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "index_path": index,
         "rag": RAGPipeline.load(index) if index.exists() else None,
         "started_at": time.monotonic(),
+        "started_at_iso": datetime.now(tz=UTC).isoformat(),
         "health_requests_total": 0,
         "ready_requests_total": 0,
         "diag_requests_total": 0,
@@ -181,6 +188,14 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return VersionResponse(
             app_version=app.version,
             index_path=str(state["index_path"]),
+        )
+
+    @app.get("/build-info", response_model=BuildInfoResponse)
+    def build_info() -> BuildInfoResponse:
+        return BuildInfoResponse(
+            app_version=app.version,
+            index_path=str(state["index_path"]),
+            started_at=state["started_at_iso"],
         )
 
     @app.get("/diag", response_model=DiagResponse)

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -35,6 +36,14 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     version_payload = version.json()
     assert version_payload["app_version"] == "1.2.0"
     assert version_payload["index_path"] == str(index)
+
+    build_info = client.get("/build-info")
+    assert build_info.status_code == 200
+    build_info_payload = build_info.json()
+    assert build_info_payload["app_version"] == "1.2.0"
+    assert build_info_payload["index_path"] == str(index)
+    assert build_info_payload["started_at"]
+    assert datetime.fromisoformat(build_info_payload["started_at"]) is not None
 
     diag = client.get("/diag")
     assert diag.status_code == 200
