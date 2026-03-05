@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .chunking import chunk_text
 from .pipeline import RAGPipeline, citations_to_dict
@@ -21,6 +21,14 @@ class AskRequest(BaseModel):
     top_k: int = Field(default=3, ge=1, le=20)
     min_score: float = Field(default=0.0, ge=0.0)
     doc_id_contains: str | None = Field(default=None, min_length=1)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("query must not be blank")
+        return normalized
 
 
 class AskResponse(BaseModel):

@@ -221,6 +221,22 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask_payload["requests_total"] == 11
 
 
+def test_api_rejects_blank_query_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post("/ask", json={"query": "   ", "top_k": 1})
+    assert res.status_code == 422
+
+
 def test_api_ask_without_index_returns_400(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)
@@ -439,6 +455,27 @@ def test_cli_rejects_negative_min_score(tmp_path: Path):
 
     assert ask.returncode != 0
     assert "must be >= 0" in ask.stderr
+
+
+def test_cli_rejects_blank_query(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "   ",
+            "--index",
+            str(index),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must not be blank" in ask.stderr
 
 
 def test_cli_ingest_and_ask_json(tmp_path: Path):

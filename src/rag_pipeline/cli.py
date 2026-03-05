@@ -25,6 +25,13 @@ def _non_negative_float(value: str) -> float:
     return parsed
 
 
+def _non_blank_text(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise argparse.ArgumentTypeError("must not be blank")
+    return normalized
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Enterprise-ready local RAG pipeline")
     parser.add_argument("--log-level", default="INFO")
@@ -47,7 +54,7 @@ def main() -> None:
     )
 
     ask = sub.add_parser("ask")
-    ask.add_argument("query")
+    ask.add_argument("query", type=_non_blank_text)
     ask.add_argument("--index", default="rag_index.pkl")
     ask.add_argument("--top-k", type=_positive_int, default=3)
     ask.add_argument("--min-score", type=_non_negative_float, default=0.0)
