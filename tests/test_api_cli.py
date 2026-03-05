@@ -258,6 +258,32 @@ def test_api_rejects_blank_query_with_422(tmp_path: Path):
     assert res.status_code == 422
 
 
+def test_api_rejects_blank_doc_id_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text(
+        "Runbook: recurring MFA failures are fixed by resetting enrollment.",
+        encoding="utf-8",
+    )
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post(
+        "/ask",
+        json={
+            "query": "How to solve MFA failures?",
+            "top_k": 1,
+            "doc_id": "   ",
+        },
+    )
+    assert res.status_code == 422
+
+
 def test_api_rejects_blank_doc_id_contains_with_422(tmp_path: Path):
     doc = tmp_path / "kb.txt"
     doc.write_text(
@@ -413,12 +439,32 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert ingest_payload["chunks_indexed"] >= 1
     assert Path(ingest_payload["index_path"]).exists()
 
+    ingest_other = client.post(
+        "/ingest",
+        json={
+            "doc_id": "runbook:vpn",
+            "text": "VPN incidents are solved by validating network routes and certificate expiration.",
+        },
+    )
+    assert ingest_other.status_code == 200
+
     ask = client.post("/ask", json={"query": "How to solve recurring MFA failures?"})
     assert ask.status_code == 200
     ask_payload = ask.json()
     assert "answer" in ask_payload
     assert len(ask_payload["citations"]) >= 1
-    assert ask_payload["citations"][0]["doc_id"] == "runbook:mfa"
+
+    ask_exact_doc = client.post(
+        "/ask",
+        json={
+            "query": "How to solve recurring MFA failures?",
+            "doc_id": "runbook:mfa",
+        },
+    )
+    assert ask_exact_doc.status_code == 200
+    ask_exact_doc_payload = ask_exact_doc.json()
+    assert len(ask_exact_doc_payload["citations"]) >= 1
+    assert all(c["doc_id"] == "runbook:mfa" for c in ask_exact_doc_payload["citations"])
 
     ask_filtered = client.post(
         "/ask",
@@ -438,11 +484,11 @@ def test_api_ingest_then_ask(tmp_path: Path):
     stats = client.get("/stats")
     assert stats.status_code == 200
     stats_payload = stats.json()
-    assert stats_payload["counters"]["ingest"] == 1
+    assert stats_payload["counters"]["ingest"] == 2
     assert stats_payload["counters"]["ingest_errors"] == 0
-    assert stats_payload["counters"]["ask"] == 2
+    assert stats_payload["counters"]["ask"] == 3
     assert stats_payload["counters"]["ask_errors"] == 0
-    assert stats_payload["ask_latency_samples"] == 2
+    assert stats_payload["ask_latency_samples"] == 3
     assert stats_payload["ask_latency_avg_seconds"] >= 0
 
 
@@ -560,6 +606,29 @@ def test_cli_rejects_blank_query(tmp_path: Path):
     assert "must not be blank" in ask.stderr
 
 
+def test_cli_rejects_blank_doc_id(tmp_path: Path):
+    index = tmp_path / "missing.pkl"
+
+    ask = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--doc-id",
+            "   ",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert ask.returncode != 0
+    assert "must not be blank" in ask.stderr
+
+
 def test_cli_rejects_blank_doc_id_contains(tmp_path: Path):
     index = tmp_path / "missing.pkl"
 
@@ -588,6 +657,10 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     docs.mkdir()
     (docs / "ops.md").write_text(
         "For recurring MFA failures, reset enrollment and validate user identity first.",
+        encoding="utf-8",
+    )
+    (docs / "vpn.md").write_text(
+        "VPN troubleshooting focuses on certificate status and network routes.",
         encoding="utf-8",
     )
 
@@ -658,6 +731,29 @@ def test_cli_ingest_and_ask_json(tmp_path: Path):
     filtered_payload = json.loads(ask_filtered.stdout)
     assert filtered_payload["citations"] == []
     assert "Não encontrei contexto relevante" in filtered_payload["answer"]
+
+    ask_doc_exact = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rag_pipeline.cli",
+            "ask",
+            "How to fix recurring MFA failures?",
+            "--index",
+            str(index),
+            "--top-k",
+            "2",
+            "--doc-id",
+            str(docs / "ops.md"),
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    doc_exact_payload = json.loads(ask_doc_exact.stdout)
+    assert len(doc_exact_payload["citations"]) >= 1
+    assert all(c["doc_id"] == str(docs / "ops.md") for c in doc_exact_payload["citations"])
 
     ask_doc_filter = subprocess.run(
         [

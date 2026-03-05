@@ -162,6 +162,21 @@ def test_retrieve_can_filter_by_doc_id_fragment(sample_docs: list[Path]):
     assert all("support" in hit["chunk"].doc_id.lower() for hit in hits)
 
 
+def test_retrieve_can_filter_by_exact_doc_id(sample_docs: list[Path]):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
+    rag.ingest_paths(sample_docs)
+
+    target_doc = str(sample_docs[0])
+    hits = rag.retrieve(
+        "audit evidence",
+        top_k=3,
+        doc_id=target_doc,
+    )
+
+    assert hits
+    assert all(hit["chunk"].doc_id == target_doc for hit in hits)
+
+
 def test_retrieve_returns_matched_terms(sample_docs: list[Path]):
     rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
     rag.ingest_paths(sample_docs)

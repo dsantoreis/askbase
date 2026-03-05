@@ -20,6 +20,7 @@ class AskRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int = Field(default=3, ge=1, le=20)
     min_score: float = Field(default=0.0, ge=0.0)
+    doc_id: str | None = Field(default=None, min_length=1)
     doc_id_contains: str | None = Field(default=None, min_length=1)
 
     @field_validator("query")
@@ -28,6 +29,16 @@ class AskRequest(BaseModel):
         normalized = value.strip()
         if not normalized:
             raise ValueError("query must not be blank")
+        return normalized
+
+    @field_validator("doc_id")
+    @classmethod
+    def validate_doc_id_not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("doc_id must not be blank")
         return normalized
 
     @field_validator("doc_id_contains")
@@ -678,6 +689,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             req.query,
             top_k=req.top_k,
             min_score=req.min_score,
+            doc_id=req.doc_id,
             doc_id_contains=req.doc_id_contains,
         )
         state["ask_latency_seconds"].append(time.perf_counter() - started)

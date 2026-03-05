@@ -98,12 +98,14 @@ class RAGPipeline:
         query: str,
         top_k: int = 3,
         min_score: float = 0.0,
+        doc_id: str | None = None,
         doc_id_contains: str | None = None,
     ) -> list[dict[str, Any]]:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
         if min_score < 0:
             raise ValueError("min_score must be >= 0")
+        normalized_doc_id = doc_id.strip().lower() if doc_id else ""
         normalized_doc_filter = doc_id_contains.strip().lower() if doc_id_contains else ""
         if not query.strip() or self._matrix is None or not self.chunks:
             return []
@@ -115,6 +117,8 @@ class RAGPipeline:
 
         ranked: list[dict[str, Any]] = []
         for i, chunk in enumerate(self.chunks):
+            if normalized_doc_id and chunk.doc_id.lower() != normalized_doc_id:
+                continue
             if normalized_doc_filter and normalized_doc_filter not in chunk.doc_id.lower():
                 continue
             chunk_terms = set(_normalize_terms(chunk.text))
@@ -155,12 +159,14 @@ class RAGPipeline:
         query: str,
         top_k: int = 3,
         min_score: float = 0.0,
+        doc_id: str | None = None,
         doc_id_contains: str | None = None,
     ) -> AnswerResult:
         hits = self.retrieve(
             query,
             top_k=top_k,
             min_score=min_score,
+            doc_id=doc_id,
             doc_id_contains=doc_id_contains,
         )
         if not hits:
@@ -194,12 +200,14 @@ class RAGPipeline:
         query: str,
         top_k: int = 3,
         min_score: float = 0.0,
+        doc_id: str | None = None,
         doc_id_contains: str | None = None,
     ) -> str:
         return self.answer_with_citations(
             query,
             top_k=top_k,
             min_score=min_score,
+            doc_id=doc_id,
             doc_id_contains=doc_id_contains,
         ).answer
 
