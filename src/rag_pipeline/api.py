@@ -164,6 +164,12 @@ class ReadyzLiteResponse(BaseModel):
     uptime_seconds: float
 
 
+class ReadyzReasonResponse(BaseModel):
+    ready: bool
+    reasons: list[str]
+    index_path: str
+
+
 class MetaLiteResponse(BaseModel):
     app_name: str
     app_version: str
@@ -483,6 +489,29 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return ReadyzLiteResponse(
             ready=_is_ready(),
             uptime_seconds=time.monotonic() - state["started_at"],
+        )
+
+    @app.get("/readyz-reason", response_model=ReadyzReasonResponse)
+    def readyz_reason() -> ReadyzReasonResponse:
+        index_path = state["index_path"]
+        artifacts_dir = index_path.parent
+        reasons: list[str] = []
+
+        if state["rag"] is None:
+            reasons.append("index_not_loaded")
+        if not index_path.exists():
+            reasons.append("index_missing")
+        elif not index_path.is_file() or not os.access(index_path, os.R_OK):
+            reasons.append("index_unreadable")
+        if not artifacts_dir.exists() or not artifacts_dir.is_dir():
+            reasons.append("artifacts_dir_missing")
+        elif not os.access(artifacts_dir, os.W_OK | os.X_OK):
+            reasons.append("artifacts_dir_not_writable")
+
+        return ReadyzReasonResponse(
+            ready=not reasons,
+            reasons=reasons,
+            index_path=str(index_path),
         )
 
     @app.get("/statusz", response_model=StatuszResponse)

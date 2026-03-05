@@ -123,6 +123,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert readyz_lite_payload["ready"] is True
     assert readyz_lite_payload["uptime_seconds"] >= 0
 
+    readyz_reason = client.get("/readyz-reason")
+    assert readyz_reason.status_code == 200
+    readyz_reason_payload = readyz_reason.json()
+    assert readyz_reason_payload["ready"] is True
+    assert readyz_reason_payload["reasons"] == []
+    assert readyz_reason_payload["index_path"] == str(index)
+
     statusz = client.get("/statusz")
     assert statusz.status_code == 200
     statusz_payload = statusz.json()
@@ -152,6 +159,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/pingz"] == {"GET"}
     assert routes["/timez"] == {"GET"}
     assert routes["/readyz-lite"] == {"GET"}
+    assert routes["/readyz-reason"] == {"GET"}
     assert routes["/statusz"] == {"GET"}
     assert routes["/meta-lite"] == {"GET"}
     assert routes["/build-lite"] == {"GET"}
@@ -490,6 +498,13 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     readyz_lite_payload = readyz_lite.json()
     assert readyz_lite_payload["ready"] is False
     assert readyz_lite_payload["uptime_seconds"] >= 0
+
+    readyz_reason = client.get("/readyz-reason")
+    assert readyz_reason.status_code == 200
+    readyz_reason_payload = readyz_reason.json()
+    assert readyz_reason_payload["ready"] is False
+    assert "index_not_loaded" in readyz_reason_payload["reasons"]
+    assert "index_missing" in readyz_reason_payload["reasons"]
 
     alivez = client.get("/alivez")
     assert alivez.status_code == 200
