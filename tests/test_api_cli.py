@@ -225,6 +225,17 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     metrics = client.get("/metrics")
     assert metrics.status_code == 200
     assert "rag_api_health_requests_total" in metrics.text
+    assert "rag_api_healthz_lite_requests_total 1" in metrics.text
+    assert "rag_api_alivez_requests_total 1" in metrics.text
+    assert "rag_api_echoz_requests_total 1" in metrics.text
+    assert "rag_api_readyz_requests_total 1" in metrics.text
+    assert "rag_api_readyz_lite_requests_total 1" in metrics.text
+    assert "rag_api_statusz_requests_total 1" in metrics.text
+    assert "rag_api_meta_lite_requests_total 1" in metrics.text
+    assert "rag_api_diag_requests_total 1" in metrics.text
+    assert "rag_api_diag_lite_requests_total 1" in metrics.text
+    assert "rag_api_openapi_lite_requests_total 1" in metrics.text
+    assert "rag_api_routes_hash_requests_total 2" in metrics.text
     assert "rag_api_version_requests_total 1" in metrics.text
     assert "rag_api_ask_safe_requests_total 0" in metrics.text
     assert "rag_api_readyz_reason_requests_total 1" in metrics.text
