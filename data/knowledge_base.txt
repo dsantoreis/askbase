@@ -1,3 +1,0 @@
-Retrieval-Augmented Generation (RAG) combina recuperação de contexto com geração de respostas.
-O pipeline típico inclui ingestão de documentos, chunking, embeddings e retrieval.
-A similaridade cosseno é uma métrica comum para ranking de chunks relevantes.

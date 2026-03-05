@@ -1,320 +1,73 @@
-# RAG Pipeline Demo — Enterprise Grade (Upwork-ready)
+# RAG Pipeline Demo
 
-RAG pronto para propostas comerciais de **suporte interno, compliance e knowledge base corporativa**.
+[![CI](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## O que este projeto entrega
+> **Production-shaped RAG baseline**: ingest real PDF/text docs, chunk, embed (TF-IDF), retrieve top-k, answer with verifiable citations, and run context-precision evaluation.
 
-- Ingestão robusta de `.txt` e `.md` com validações:
-  - extensão permitida
-  - tamanho máximo por arquivo
-  - mínimo de caracteres
-  - deduplicação por hash SHA-256
-- Chunking configurável:
-  - estratégia `char` ou `paragraph`
-  - `chunk_size` + `overlap`
-- Retrieval híbrido simples:
-  - score lexical (TF-IDF + cosine)
-  - score por interseção de termos de negócio
-  - combinação ponderada
-- Rerank básico:
-  - bônus por cobertura de termos da query
-  - bônus adicional por presença de múltiplos termos
-- Persistência/caching de índice:
-  - serialização do índice com versão
-  - configs de ingest/retrieval embutidas no artefato
-- Avaliação offline mínima:
-  - `precision@k` com dataset JSONL
-- API e CLI de produção:
-  - CLI: `ingest`, `ask`, `evaluate`, `serve`
-  - `ask` retorna resposta + citations (doc_id, offsets, score)
-  - API FastAPI: `/health`, `/healthz-lite`, `/alivez`, `/echoz`, `/pingz`, `/timez`, `/readyz`, `/readyz-lite`, `/statusz`, `/version`, `/build-info`, `/build-lite`, `/diag`, `/openapi-lite`, `/routes-hash`, `/stats`, `/metrics`, `/ingest`, `/ask`
-- Observabilidade:
-  - logs estruturados em JSON
-  - mensagens de erro explícitas (arquivo inválido, índice incompatível, etc.)
-- Testes:
-  - unitários
-  - integração (API)
-  - falhas/validações (ex.: arquivo grande demais)
+## Architecture
 
----
+```mermaid
+flowchart LR
+  A[PDF/TXT/MD files] --> B[Ingestion]
+  B --> C[Chunking]
+  C --> D[TF-IDF Embeddings]
+  D --> E[Top-k Retrieval]
+  E --> F[Answer + Citations]
+  E --> G[Context Precision@k Eval]
+```
 
-## Instalação
+## Quickstart (3 commands)
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
+rag ingest ./docs --index artifacts/rag_index.pkl && rag ask "What is our retention policy?" --index artifacts/rag_index.pkl --top-k 3 --json
 ```
 
-## Execução rápida (happy path)
+## Features
 
-```bash
-# 1) Ingestão de exemplo
-python -m rag_pipeline.cli ingest data --index artifacts/rag_index.pkl
+- PDF + text ingestion (`.pdf`, `.txt`, `.md`)
+- deterministic chunking with overlap
+- embedding + retrieval with cosine similarity
+- grounded answers with citations (`doc_id`, offsets, score, excerpt)
+- simple offline eval: `context_precision@k`
+- API + CLI + Docker + CI
 
-# 2) Query simples
-python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" --index artifacts/rag_index.pkl --top-k 3
+## API
 
-# 3) Gate de qualidade completo (quality + API/CLI)
-npm run quality:full
-```
-
-## Uso CLI
-
-### 1) Ingestão
-
-```bash
-python -m rag_pipeline.cli ingest data \
-  --index artifacts/rag_index.pkl \
-  --chunk-size 500 \
-  --overlap 100 \
-  --chunk-strategy char \
-  --max-file-mb 5 \
-  --min-chars 30 \
-  --use-semantic \
-  --semantic-weight 0.25
-```
-
-### 2) Perguntas
-
-```bash
-python -m rag_pipeline.cli ask "Qual política de retenção de evidências?" \
-  --index artifacts/rag_index.pkl \
-  --top-k 3 \
-  --min-score 0.05
-
-# saída também lista citations com doc_id, intervalo e score
-# --min-score filtra chunks de baixa confiança (default: 0.0)
-```
-
-### 3) Avaliação offline (`precision@k`)
-
-Formato `eval.jsonl` (1 linha JSON por query):
-
-```json
-{"query":"Onde guardar evidências de auditoria?","relevant_doc_ids":["/path/policy.md"]}
-```
-
-Executar:
-
-```bash
-python -m rag_pipeline.cli evaluate \
-  --index artifacts/rag_index.pkl \
-  --dataset eval.jsonl \
-  --k 3
-```
-
-### 4) API HTTP
-
-```bash
-python -m rag_pipeline.cli serve --index artifacts/rag_index.pkl --host 0.0.0.0 --port 8080
-```
-
-Endpoints:
 - `GET /health`
-- `GET /healthz-lite` (status + uptime_seconds; health compacto para probes leves)
-- `GET /alivez` (liveness mínimo: `{"status":"alive"}`)
-- `GET /echoz` (echo operacional: `{"status":"ok","service":"RAG Pipeline Demo API"}`)
-- `GET /pingz`
-- `GET /timez` (timestamp UTC do servidor + uptime_seconds)
-- `GET /readyz`
-- `GET /readyz-lite` (ready + uptime_seconds; readiness compacto para probes leves)
-- `GET /version`
-- `GET /statusz` (resumo compacto: ready + uptime_seconds + app_version)
-- `GET /meta-lite` (metadados leves: app_name + app_version + uptime_seconds)
-- `GET /build-info` (versão + index ativo + timestamp de boot da API)
-- `GET /build-lite` (versão + timestamp de boot da API; sem `index_path`)
-- `GET /diag` (snapshot seguro de índice/artefatos; sem conteúdo de documentos)
-- `GET /openapi-lite` (resumo seguro de rotas/métodos disponíveis; sem schema OpenAPI completo)
-- `GET /routes-hash` (hash SHA-256 estável das rotas/métodos expostos via schema-lite)
-- `GET /stats` (contadores agregados por endpoint + uptime)
-- `GET /metrics`
 - `POST /ingest`
 - `POST /ask`
+- `POST /evaluate`
 
-Exemplo (ingest + ask):
+## Evaluation dataset format
 
-```bash
-curl -X POST http://127.0.0.1:8080/ingest \
-  -H 'Content-Type: application/json' \
-  -d '{"doc_id":"runbook:mfa","text":"Falhas recorrentes de MFA devem ser tratadas com reset de enrollment e validação de identidade."}'
+`eval.jsonl`:
 
-curl -X POST http://127.0.0.1:8080/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"Como tratar falha recorrente de MFA?","top_k":3,"min_score":0.05}'
+```json
+{"query":"MFA required?","relevant_doc_ids":["/abs/path/security.txt"]}
 ```
 
-### Runbook rápido (health + healthz-lite + alivez + echoz + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + metrics)
+Run:
 
 ```bash
-# 1) Health check
-curl -s http://127.0.0.1:8080/health | jq .
-
-# 2) Health compacto (status + uptime_seconds)
-curl -s http://127.0.0.1:8080/healthz-lite | jq .
-
-# 3) Liveness mínimo
-curl -s http://127.0.0.1:8080/alivez | jq .
-
-# 4) Echo operacional (status + service)
-curl -s http://127.0.0.1:8080/echoz | jq .
-
-# 5) Ping de latência + timestamp UTC
-curl -s http://127.0.0.1:8080/pingz | jq .
-
-# 5) Hora do servidor UTC + uptime
-curl -s http://127.0.0.1:8080/timez | jq .
-
-# 6) Readiness (índice carregado + artefatos acessíveis)
-curl -s http://127.0.0.1:8080/readyz | jq .
-
-# 7) Readiness compacto (ready + uptime_seconds)
-curl -s http://127.0.0.1:8080/readyz-lite | jq .
-
-# 8) Status compacto (ready + uptime_seconds + app_version)
-curl -s http://127.0.0.1:8080/statusz | jq .
-
-# 9) Meta-lite (app_name + app_version + uptime_seconds)
-curl -s http://127.0.0.1:8080/meta-lite | jq .
-
-# 10) Versão e index ativo
-curl -s http://127.0.0.1:8080/version | jq .
-
-# 11) Build info (versão + index + started_at)
-curl -s http://127.0.0.1:8080/build-info | jq .
-
-# 12) Build-lite (versão + started_at, payload mínimo)
-curl -s http://127.0.0.1:8080/build-lite | jq .
-
-# 13) Diagnóstico seguro (somente metadados de índice/artefatos)
-curl -s http://127.0.0.1:8080/diag | jq .
-
-# 14) OpenAPI Lite (rotas + métodos expostos; sem schema completo)
-curl -s http://127.0.0.1:8080/openapi-lite | jq .
-
-# 15) Hash estável das rotas expostas (schema-lite)
-curl -s http://127.0.0.1:8080/routes-hash | jq .
-
-# 16) Estatísticas agregadas de API (counters + uptime)
-curl -s http://127.0.0.1:8080/stats | jq .
-
-# 17) Métricas estilo Prometheus
-curl -s http://127.0.0.1:8080/metrics
-
-# 18) Sanidade fim-a-fim (health + healthz-lite + alivez + echoz + pingz + timez + readyz + readyz-lite + statusz + meta-lite + version + build-info + build-lite + diag + openapi-lite + routes-hash + stats + ask + metrics)
-curl -s http://127.0.0.1:8080/health | jq .status
-curl -s http://127.0.0.1:8080/healthz-lite | jq .uptime_seconds
-curl -s http://127.0.0.1:8080/alivez | jq .status
-curl -s http://127.0.0.1:8080/echoz | jq .service
-curl -s http://127.0.0.1:8080/pingz | jq .status
-curl -s http://127.0.0.1:8080/timez | jq .server_time_utc
-curl -s http://127.0.0.1:8080/readyz | jq .status
-curl -s http://127.0.0.1:8080/readyz-lite | jq .ready
-curl -s http://127.0.0.1:8080/statusz | jq .ready
-curl -s http://127.0.0.1:8080/meta-lite | jq .app_name
-curl -s http://127.0.0.1:8080/version | jq .app_version
-curl -s http://127.0.0.1:8080/build-info | jq .started_at
-curl -s http://127.0.0.1:8080/build-lite | jq .started_at
-curl -s http://127.0.0.1:8080/diag | jq '.index_snapshot.chunks_count'
-curl -s http://127.0.0.1:8080/openapi-lite | jq '.routes | length'
-curl -s http://127.0.0.1:8080/routes-hash | jq '.routes_hash'
-curl -s http://127.0.0.1:8080/stats | jq '.counters'
-curl -s -X POST http://127.0.0.1:8080/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"How solve VPN issues?","top_k":2}' | jq .answer
-curl -s http://127.0.0.1:8080/metrics | grep -E 'rag_api_(health|ask)_requests_total'
+rag evaluate --index artifacts/rag_index.pkl --dataset eval.jsonl --k 3
 ```
 
----
-
-## Casos reais (alvo Upwork)
-
-1. **Suporte Interno (IT Helpdesk):**
-   - KB de runbooks e troubleshooting
-   - Redução de MTTR via respostas consistentes
-
-2. **Compliance / Auditoria:**
-   - políticas internas, controles e evidências
-   - consultas rápidas para times jurídicos/compliance
-
-3. **Operations Enablement:**
-   - centralização de SOPs e FAQs operacionais
-   - onboarding acelerado para novos analistas
-
----
-
-## ROI comercial (pitch)
-
-- **Menos retrabalho de suporte** (respostas padronizadas + contexto certo)
-- **Onboarding mais rápido** (acesso imediato a conhecimento curado)
-- **Melhor governança** (base rastreável, com avaliação mínima objetiva)
-- **Acelera PoC para produção** com API + CLI + persistência + testes
-
----
-
-## Qualidade e testes
-
-### Gate padrão
-Roda **format check + lint + unit + smoke** em sequência.
+## Local quality gate
 
 ```bash
-npm run quality
+ruff check src tests
+pytest -q
+python -m build
 ```
 
-### Gate completo (pré-publicação)
-Roda gate padrão + testes de API/CLI.
+## Docker
 
 ```bash
-npm run quality:full
+docker compose up --build
 ```
 
-### API/CLI
-```bash
-npm run test:api-cli
-```
-
-### Unit (pipeline completo)
-```bash
-npm run test:unit
-```
-
-### Smoke (persistência rápida)
-Valida somente o ciclo `save/load` do índice, sem rodar todos os cenários do pipeline.
-```bash
-npm run test:persistence-smoke
-```
-
-### Checklist pré-publicação
-- [ ] `npm run quality:full` passou localmente
-- [ ] `python -m rag_pipeline.cli ingest ...` validado com base real
-- [ ] `python -m rag_pipeline.cli ask ... --json` retornou citations
-- [ ] `python -m rag_pipeline.cli serve ...` + `GET /health` + `GET /healthz-lite` + `GET /alivez` + `GET /echoz` + `GET /pingz` + `GET /timez` + `GET /readyz` + `GET /readyz-lite` + `GET /statusz` + `GET /version` + `GET /build-info` + `GET /build-lite` + `GET /diag` + `GET /openapi-lite` + `GET /routes-hash` + `GET /stats` + `POST /ask` testados
-- [ ] README atualizado com comandos finais de validação
-
----
-
-## Estrutura
-
-- `src/rag_pipeline/chunking.py` — chunking configurável
-- `src/rag_pipeline/pipeline.py` — ingestão, retrieval híbrido, rerank, persistência, avaliação
-- `src/rag_pipeline/cli.py` — CLI de produção
-- `src/rag_pipeline/api.py` — API FastAPI
-- `src/rag_pipeline/logging_utils.py` — logs estruturados
-- `tests/` — unit/integration/failure tests
-
----
-
-## Limites conhecidos
-
-- Embeddings semânticos são opcionais (via `sentence-transformers`) e desativados por padrão
-- Rerank é heurístico e leve (bom para baseline comercial, não SOTA)
-- Suporte de formatos está focado em `.txt`/`.md` (pode ser expandido para PDF/DOCX)
-
----
-
-## Próximos upgrades sugeridos
-
-- Adicionar embedding semântico (`sentence-transformers`) com fallback híbrido
-- Re-ranking com cross-encoder para consultas críticas
-- Observabilidade com OpenTelemetry + métricas de latência
-- Multi-tenant index store (S3/Postgres/VectorDB)
+API at `http://127.0.0.1:8080/health`.

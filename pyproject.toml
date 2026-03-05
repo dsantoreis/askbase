@@ -3,22 +3,35 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rag-pipeline-demo-py"
-version = "0.1.0"
-description = "Minimal local RAG pipeline demo in Python"
+name = "rag-pipeline-demo"
+version = "0.3.0"
+description = "Portfolio-grade RAG pipeline with PDF/text ingestion, retrieval, citations and evaluation"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-  "scikit-learn>=1.4.0",
   "fastapi>=0.116.0",
-  "uvicorn>=0.35.0"
+  "uvicorn>=0.35.0",
+  "scikit-learn>=1.5.0",
+  "pypdf>=5.0.0"
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0.0", "httpx>=0.28.0", "ruff>=0.13.0"]
+dev = [
+  "pytest>=8.2.0",
+  "httpx>=0.28.0",
+  "ruff>=0.13.0",
+  "build>=1.2.2"
+]
+
+[project.scripts]
+rag = "rag_pipeline.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

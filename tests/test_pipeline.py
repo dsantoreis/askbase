@@ -1,396 +1,42 @@
-import json
 from pathlib import Path
 
 import pytest
 
-from rag_pipeline.pipeline import IngestConfig, RAGPipeline, RetrievalConfig
+from rag_pipeline.pipeline import RAGPipeline
 
 
-@pytest.fixture
-def sample_docs(tmp_path: Path) -> list[Path]:
-    a = tmp_path / "policy.md"
-    b = tmp_path / "support.txt"
-    a.write_text(
-        "Compliance policy requires annual review. Audit evidence must be stored for 7 years.",
-        encoding="utf-8",
-    )
-    b.write_text(
-        "Support playbook: reset MFA, verify identity, escalate L2 when repeated failures happen.",
-        encoding="utf-8",
-    )
-    return [a, b]
+def test_missing_documents_raise(tmp_path: Path) -> None:
+    rag = RAGPipeline()
+    with pytest.raises(ValueError, match="path not found"):
+        rag.ingest([tmp_path / "missing"])
 
 
-def test_ingest_retrieve_answer(sample_docs: list[Path]):
-    rag = RAGPipeline(
-        ingest_config=IngestConfig(chunk_size=90, overlap=20, chunk_strategy="char"),
-    )
-    n = rag.ingest_paths(sample_docs)
-    assert n > 0
-
-    hits = rag.retrieve("How long keep audit evidence?", top_k=2)
-    assert hits
-    assert hits[0]["score"] >= hits[-1]["score"]
-
-    answer = rag.answer("What does compliance require?")
-    assert "contexto" in answer.lower() or "compliance" in answer.lower()
-
-
-def test_answer_includes_citations(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-
-    result = rag.answer_with_citations("Where to store audit evidence?", top_k=2)
-
-    assert "Referências" in result.answer
-    assert len(result.citations) >= 1
-    assert result.citations[0].doc_id.endswith("policy.md")
-
-
-def test_persist_load_and_eval(sample_docs: list[Path], tmp_path: Path):
-    index = tmp_path / "idx.pkl"
-    eval_data = tmp_path / "eval.jsonl"
-
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-    rag.save(index)
-
-    eval_data.write_text(
-        "\n".join(
-            [
-                json.dumps(
-                    {
-                        "query": "Where to store audit evidence?",
-                        "relevant_doc_ids": [str(sample_docs[0])],
-                    }
-                ),
-                json.dumps(
-                    {
-                        "query": "When escalate support cases?",
-                        "relevant_doc_ids": [str(sample_docs[1])],
-                    }
-                ),
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    loaded = RAGPipeline.load(index)
-    report = loaded.evaluate_precision_at_k(eval_data, k=2)
-
-    assert report["metric"] == "precision@2"
-    assert report["samples"] == 2
-    assert 0.0 <= report["value"] <= 1.0
-    assert report["recall_metric"] == "recall@2"
-    assert 0.0 <= report["recall_value"] <= 1.0
-    assert len(report["details"]) == 2
-    first_detail = report["details"][0]
-    assert "predicted_doc_ids" in first_detail
-    assert "relevant_doc_ids" in first_detail
-    assert "correct_hits" in first_detail
-    assert "recall" in first_detail
-    assert first_detail["hits"] == first_detail["predicted_doc_ids"]
-
-
-def test_ingest_validation_rejects_large_file(tmp_path: Path):
-    big = tmp_path / "big.txt"
-    big.write_text("a" * 2048, encoding="utf-8")
-
-    rag = RAGPipeline(ingest_config=IngestConfig(max_file_mb=0))
-    with pytest.raises(ValueError, match="file too large"):
-        rag.ingest_paths([big])
-
-
-def test_deduplicate_same_content(tmp_path: Path):
-    a = tmp_path / "a.txt"
-    b = tmp_path / "b.txt"
-    content = "same content for deduplication checks in ingestion pipeline"
-    a.write_text(content, encoding="utf-8")
-    b.write_text(content, encoding="utf-8")
-
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
-    count = rag.ingest_paths([a, b])
-
-    assert count > 0
-    assert len({c.doc_id for c in rag.chunks}) == 1
-
-
-@pytest.mark.parametrize(
-    "filename",
-    ["guide.markdown", "guide.mdx", "guide.rst", "service.log", "notes.text"],
-)
-def test_ingest_supports_text_extensions(tmp_path: Path, filename: str):
-    doc = tmp_path / filename
-    doc.write_text(
-        "Incident guide: rotate keys and revoke compromised sessions.",
-        encoding="utf-8",
-    )
-
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
-    count = rag.ingest_paths([doc])
-
-    assert count >= 1
-    assert rag.chunks[0].doc_id.endswith(filename)
-
-
-def test_retrieve_rejects_non_positive_top_k(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="top_k must be >= 1"):
-        rag.retrieve("any query", top_k=0)
-
-
-def test_retrieve_rejects_negative_min_score(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="min_score must be >= 0"):
-        rag.retrieve("any query", min_score=-0.01)
-
-
-def test_retrieve_rejects_negative_min_term_matches(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="min_term_matches must be >= 0"):
-        rag.retrieve("audit evidence", min_term_matches=-1)
-
-
-def test_retrieve_rejects_doc_id_and_doc_id_contains_together(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="use either doc_id or doc_id_contains"):
-        rag.retrieve("audit evidence", doc_id="policy.md", doc_id_contains="policy")
-
-
-def test_retrieve_rejects_blank_doc_id(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="doc_id must not be blank"):
-        rag.retrieve("MFA identity verification", top_k=3, doc_id="   ")
-
-
-def test_retrieve_rejects_blank_doc_id_contains(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    with pytest.raises(ValueError, match="doc_id_contains must not be blank"):
-        rag.retrieve("MFA identity verification", top_k=3, doc_id_contains="   ")
-
-
-def test_retrieve_respects_min_score_threshold(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    baseline_hits = rag.retrieve("audit evidence retention", top_k=3)
-    assert baseline_hits
-
-    threshold = max(hit["score"] for hit in baseline_hits) + 0.01
-    filtered_hits = rag.retrieve(
-        "audit evidence retention", top_k=3, min_score=threshold
-    )
-    assert filtered_hits == []
-
-
-def test_retrieve_can_filter_by_doc_id_fragment(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    hits = rag.retrieve(
-        "MFA identity verification",
-        top_k=3,
-        doc_id_contains="support",
-    )
-
-    assert hits
-    assert all("support" in hit["chunk"].doc_id.lower() for hit in hits)
-
-
-def test_retrieve_can_filter_by_exact_doc_id(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    target_doc = str(sample_docs[0])
-    hits = rag.retrieve(
-        "audit evidence",
-        top_k=3,
-        doc_id=target_doc,
-    )
-
-    assert hits
-    assert all(hit["chunk"].doc_id == target_doc for hit in hits)
-
-
-def test_retrieve_returns_matched_terms(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    hits = rag.retrieve("audit evidence retention", top_k=1)
-
-    assert hits
-    assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
-
-
-def test_retrieve_can_require_min_term_matches(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    strict_hits = rag.retrieve("audit evidence retention", top_k=3, min_term_matches=2)
-
-    assert strict_hits
-    assert all(len(hit["matched_terms"]) >= 2 for hit in strict_hits)
-
-    no_hits = rag.retrieve("audit evidence retention", top_k=3, min_term_matches=4)
-    assert no_hits == []
-
-
-def test_retrieve_returns_empty_for_punctuation_only_query(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    hits = rag.retrieve("...?!", top_k=3)
-
-    assert hits == []
-
-
-def test_retrieve_normalizes_hyphenated_query_terms(sample_docs: list[Path]):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=90, overlap=20))
-    rag.ingest_paths(sample_docs)
-
-    hits = rag.retrieve("audit-evidence retention", top_k=1)
-
-    assert hits
-    assert {"audit", "evidence"}.issubset(set(hits[0]["matched_terms"]))
-
-
-def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path):
-    index = tmp_path / "idx.pkl"
-    eval_data = tmp_path / "eval.jsonl"
-
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-    rag.save(index)
-
-    eval_data.write_text(
-        json.dumps(
-            {
-                "query": "Where to store audit evidence?",
-                "relevant_doc_ids": [str(sample_docs[0])],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    loaded = RAGPipeline.load(index)
-    with pytest.raises(ValueError, match="k must be >= 1"):
-        loaded.evaluate_precision_at_k(eval_data, k=0)
-
-
-def test_evaluate_rejects_blank_query(sample_docs: list[Path], tmp_path: Path):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-
-    eval_data = tmp_path / "eval.jsonl"
-    eval_data.write_text(
-        json.dumps(
-            {
-                "query": "   ",
-                "relevant_doc_ids": [str(sample_docs[0])],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="query must be a non-blank string",
-    ):
-        rag.evaluate_precision_at_k(eval_data, k=1)
-
-
-def test_evaluate_rejects_non_list_relevant_doc_ids(
-    sample_docs: list[Path], tmp_path: Path
-):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-
-    eval_data = tmp_path / "eval.jsonl"
-    eval_data.write_text(
-        json.dumps(
-            {
-                "query": "Where to store audit evidence?",
-                "relevant_doc_ids": str(sample_docs[0]),
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="relevant_doc_ids must be a non-empty list",
-    ):
-        rag.evaluate_precision_at_k(eval_data, k=1)
-
-
-def test_evaluate_rejects_blank_relevant_doc_id_entries(
-    sample_docs: list[Path], tmp_path: Path
-):
-    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
-    rag.ingest_paths(sample_docs)
-
-    eval_data = tmp_path / "eval.jsonl"
-    eval_data.write_text(
-        json.dumps(
-            {
-                "query": "Where to store audit evidence?",
-                "relevant_doc_ids": ["   "],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="relevant_doc_ids entries must be non-blank strings",
-    ):
-        rag.evaluate_precision_at_k(eval_data, k=1)
-
-
-def test_semantic_retrieval_can_drive_ranking(tmp_path: Path):
+def test_deterministic_retrieval_with_fixture_docs(tmp_path: Path) -> None:
     docs = tmp_path / "docs"
     docs.mkdir()
-    car = docs / "car.txt"
-    cloud = docs / "cloud.txt"
-    car.write_text("automobile handbook", encoding="utf-8")
-    cloud.write_text("cloud infrastructure", encoding="utf-8")
+    (docs / "vpn.txt").write_text("VPN reset token rotation runbook and split tunnel policy", encoding="utf-8")
+    (docs / "db.txt").write_text("Database migration rollback checklist and backup verification", encoding="utf-8")
 
-    class FakeSemanticModel:
-        def encode(self, texts):
-            mapping = {
-                "automobile handbook": [1.0, 0.0],
-                "cloud infrastructure": [0.0, 1.0],
-                "car guide": [1.0, 0.0],
-            }
-            return [mapping.get(text, [0.0, 0.0]) for text in texts]
+    rag = RAGPipeline(chunk_size=30, overlap=10)
+    rag.ingest([docs])
 
-    rag = RAGPipeline(
-        ingest_config=IngestConfig(chunk_size=80, overlap=10, min_chars=5),
-        retrieval_config=RetrievalConfig(
-            lexical_weight=0.0,
-            keyword_weight=0.0,
-            semantic_weight=1.0,
-            rerank_boost=0.0,
-            use_semantic=True,
-        ),
-    )
-    rag._semantic_model = FakeSemanticModel()
-    rag.ingest_paths([docs])
+    hits_a = rag.retrieve("token rotation policy", top_k=2)
+    hits_b = rag.retrieve("token rotation policy", top_k=2)
 
-    hits = rag.retrieve("car guide", top_k=1)
+    assert [h.chunk.doc_id for h in hits_a] == [h.chunk.doc_id for h in hits_b]
+    assert hits_a[0].chunk.doc_id.endswith("vpn.txt")
 
-    assert hits
-    assert hits[0]["chunk"].doc_id.endswith("car.txt")
-    assert hits[0]["semantic_score"] > 0.9
+
+def test_ask_returns_verifiable_citations(tmp_path: Path) -> None:
+    doc = tmp_path / "policy.md"
+    doc.write_text("Incident policy requires encrypted evidence retention for 90 days.", encoding="utf-8")
+
+    rag = RAGPipeline(chunk_size=25, overlap=5)
+    rag.ingest([doc])
+
+    answer = rag.ask("What is evidence retention policy?", top_k=1)
+
+    assert "Answer grounded" in answer.text
+    assert answer.citations
+    assert answer.citations[0].doc_id.endswith("policy.md")
+    assert answer.citations[0].score >= 0.0

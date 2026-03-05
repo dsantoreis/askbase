@@ -1,450 +1,113 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import logging
 import pickle
-import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
-from .chunking import Chunk, ChunkStrategy, chunk_text
-
-logger = logging.getLogger(__name__)
+from .chunking import Chunk, chunk_text
+from .documents import collect_documents
+from .retrieval import RetrievedChunk, Retriever
 
 
-@dataclass
-class IngestConfig:
-    chunk_size: int = 500
-    overlap: int = 100
-    chunk_strategy: ChunkStrategy = "char"
-    max_file_mb: int = 5
-    min_chars: int = 30
-
-
-@dataclass
-class RetrievalConfig:
-    lexical_weight: float = 0.7
-    keyword_weight: float = 0.3
-    semantic_weight: float = 0.0
-    rerank_boost: float = 0.15
-    use_semantic: bool = False
-    semantic_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-
-
-@dataclass
+@dataclass(frozen=True)
 class Citation:
     doc_id: str
-    chunk_start: int
-    chunk_end: int
+    start_char: int
+    end_char: int
     score: float
     excerpt: str
 
 
-@dataclass
-class AnswerResult:
-    answer: str
+@dataclass(frozen=True)
+class Answer:
+    text: str
     citations: list[Citation]
 
 
 class RAGPipeline:
-    SUPPORTED_EXTENSIONS = {
-        ".txt",
-        ".text",
-        ".log",
-        ".md",
-        ".markdown",
-        ".mdx",
-        ".rst",
-    }
-    INDEX_VERSION = "2.2"
+    INDEX_VERSION = "3.0"
 
-    def __init__(
-        self,
-        ingest_config: IngestConfig | None = None,
-        retrieval_config: RetrievalConfig | None = None,
-    ) -> None:
-        self.ingest_config = ingest_config or IngestConfig()
-        self.retrieval_config = retrieval_config or RetrievalConfig()
-        self.vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
+    def __init__(self, chunk_size: int = 220, overlap: int = 40) -> None:
+        self.chunk_size = chunk_size
+        self.overlap = overlap
         self.chunks: list[Chunk] = []
-        self._matrix: Any = None
-        self._doc_hashes: dict[str, str] = {}
-        self._semantic_model: Any = None
-        self._semantic_embeddings: Any = None
+        self.retriever = Retriever()
 
-    def ingest_paths(self, paths: list[str | Path]) -> int:
-        all_chunks: list[Chunk] = []
-        seen_hashes: set[str] = set()
+    def ingest(self, paths: list[str | Path]) -> int:
+        docs = collect_documents(paths)
+        chunks: list[Chunk] = []
+        for doc_id, text in docs.items():
+            chunks.extend(
+                chunk_text(text=text, doc_id=doc_id, chunk_size=self.chunk_size, overlap=self.overlap)
+            )
+        self.chunks = chunks
+        self.retriever.fit(chunks)
+        return len(chunks)
 
-        for path in paths:
-            p = Path(path)
-            if p.is_dir():
-                for file in sorted(p.rglob("*")):
-                    if (
-                        file.is_file()
-                        and file.suffix.lower() in self.SUPPORTED_EXTENSIONS
-                    ):
-                        all_chunks.extend(self._read_and_chunk(file, seen_hashes))
-            elif p.is_file():
-                all_chunks.extend(self._read_and_chunk(p, seen_hashes))
-            else:
-                logger.warning("invalid_path", extra={"path": str(path)})
+    def ask(self, query: str, top_k: int = 3) -> Answer:
+        hits = self.retrieve(query=query, top_k=top_k)
+        if not hits:
+            return Answer(text="No supporting context found.", citations=[])
 
-        self.chunks = all_chunks
-        texts = [c.text for c in self.chunks]
-        self._matrix = self.vectorizer.fit_transform(texts) if texts else None
-        self._semantic_embeddings = self._encode_semantic_texts(texts)
-        logger.info("ingest_complete", extra={"chunks": len(self.chunks)})
-        return len(self.chunks)
+        lines = ["Answer grounded in retrieved context:"]
+        citations: list[Citation] = []
+        for idx, hit in enumerate(hits, start=1):
+            excerpt = hit.chunk.text[:200]
+            lines.append(f"[{idx}] {excerpt}")
+            citations.append(
+                Citation(
+                    doc_id=hit.chunk.doc_id,
+                    start_char=hit.chunk.start_char,
+                    end_char=hit.chunk.end_char,
+                    score=round(hit.score, 4),
+                    excerpt=excerpt,
+                )
+            )
+        return Answer(text="\n".join(lines), citations=citations)
 
-    def retrieve(
-        self,
-        query: str,
-        top_k: int = 3,
-        min_score: float = 0.0,
-        doc_id: str | None = None,
-        doc_id_contains: str | None = None,
-        min_term_matches: int = 0,
-    ) -> list[dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int = 3) -> list[RetrievedChunk]:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
-        if min_score < 0:
-            raise ValueError("min_score must be >= 0")
-        if min_term_matches < 0:
-            raise ValueError("min_term_matches must be >= 0")
-        if doc_id is not None and not doc_id.strip():
-            raise ValueError("doc_id must not be blank")
-        if doc_id_contains is not None and not doc_id_contains.strip():
-            raise ValueError("doc_id_contains must not be blank")
-
-        normalized_doc_id = doc_id.strip().lower() if doc_id else ""
-        normalized_doc_filter = (
-            doc_id_contains.strip().lower() if doc_id_contains else ""
-        )
-        if normalized_doc_id and normalized_doc_filter:
-            raise ValueError("use either doc_id or doc_id_contains, not both")
-        if not query.strip() or self._matrix is None or not self.chunks:
-            return []
-
-        query_terms = set(_normalize_terms(query))
-        if not query_terms:
-            return []
-
-        qv = self.vectorizer.transform([query])
-        lexical_scores = cosine_similarity(qv, self._matrix)[0]
-        semantic_scores = self._semantic_similarity(query)
-
-        ranked: list[dict[str, Any]] = []
-        for i, chunk in enumerate(self.chunks):
-            if normalized_doc_id and chunk.doc_id.lower() != normalized_doc_id:
-                continue
-            if (
-                normalized_doc_filter
-                and normalized_doc_filter not in chunk.doc_id.lower()
-            ):
-                continue
-            chunk_terms = set(_normalize_terms(chunk.text))
-            matched_terms = sorted(query_terms.intersection(chunk_terms))
-            overlap = len(matched_terms)
-            if overlap < min_term_matches:
-                continue
-            keyword_score = overlap / max(len(query_terms), 1)
-            semantic_score = (
-                float(semantic_scores[i]) if semantic_scores is not None else 0.0
-            )
-
-            hybrid_score = (
-                self.retrieval_config.lexical_weight * float(lexical_scores[i])
-                + self.retrieval_config.keyword_weight * keyword_score
-                + self.retrieval_config.semantic_weight * semantic_score
-            )
-            rerank_bonus = self._rerank_bonus(query_terms, chunk_terms)
-            final_score = (
-                hybrid_score + self.retrieval_config.rerank_boost * rerank_bonus
-            )
-
-            if final_score >= max(min_score, 0.0):
-                ranked.append(
-                    {
-                        "chunk": chunk,
-                        "score": final_score,
-                        "lexical_score": float(lexical_scores[i]),
-                        "keyword_score": keyword_score,
-                        "semantic_score": semantic_score,
-                        "matched_terms": matched_terms,
-                    }
-                )
-
-        ranked.sort(key=lambda item: item["score"], reverse=True)
-        return ranked[:top_k]
-
-    def answer_with_citations(
-        self,
-        query: str,
-        top_k: int = 3,
-        min_score: float = 0.0,
-        doc_id: str | None = None,
-        doc_id_contains: str | None = None,
-        min_term_matches: int = 0,
-    ) -> AnswerResult:
-        hits = self.retrieve(
-            query,
-            top_k=top_k,
-            min_score=min_score,
-            doc_id=doc_id,
-            doc_id_contains=doc_id_contains,
-            min_term_matches=min_term_matches,
-        )
-        if not hits:
-            return AnswerResult(
-                answer="Não encontrei contexto relevante para responder.", citations=[]
-            )
-
-        best = hits[0]["chunk"].text
-        summary = best[:320] + ("..." if len(best) > 320 else "")
-        citations = [
-            Citation(
-                doc_id=h["chunk"].doc_id,
-                chunk_start=h["chunk"].start,
-                chunk_end=h["chunk"].end,
-                score=round(float(h["score"]), 4),
-                excerpt=h["chunk"].text[:180],
-            )
-            for h in hits
-        ]
-
-        refs = " ".join(f"[{i + 1}]" for i in range(len(citations)))
-        answer = (
-            "Resposta baseada no contexto recuperado:\n"
-            f"{summary}\n\n"
-            f"Referências: {refs}"
-        )
-        return AnswerResult(answer=answer, citations=citations)
-
-    def answer(
-        self,
-        query: str,
-        top_k: int = 3,
-        min_score: float = 0.0,
-        doc_id: str | None = None,
-        doc_id_contains: str | None = None,
-        min_term_matches: int = 0,
-    ) -> str:
-        return self.answer_with_citations(
-            query,
-            top_k=top_k,
-            min_score=min_score,
-            doc_id=doc_id,
-            doc_id_contains=doc_id_contains,
-            min_term_matches=min_term_matches,
-        ).answer
-
-    def evaluate_precision_at_k(
-        self, dataset_path: str | Path, k: int = 3
-    ) -> dict[str, Any]:
-        if k < 1:
-            raise ValueError("k must be >= 1")
-        entries = _load_eval_jsonl(Path(dataset_path))
-        if not entries:
-            raise ValueError("evaluation dataset is empty")
-
-        scores: list[float] = []
-        recalls: list[float] = []
-        details: list[dict[str, Any]] = []
-
-        for item in entries:
-            query = item["query"]
-            relevant_doc_ids = set(item["relevant_doc_ids"])
-            hits = self.retrieve(query, top_k=k)
-            predicted = [h["chunk"].doc_id for h in hits]
-            correct = sum(1 for doc_id in predicted if doc_id in relevant_doc_ids)
-            precision = correct / max(k, 1)
-            recall = correct / max(len(relevant_doc_ids), 1)
-            scores.append(precision)
-            recalls.append(recall)
-            details.append(
-                {
-                    "query": query,
-                    "precision": precision,
-                    "recall": recall,
-                    "hits": predicted,
-                    "predicted_doc_ids": predicted,
-                    "relevant_doc_ids": sorted(relevant_doc_ids),
-                    "correct_hits": correct,
-                }
-            )
-
-        return {
-            "metric": f"precision@{k}",
-            "value": sum(scores) / len(scores),
-            "recall_metric": f"recall@{k}",
-            "recall_value": sum(recalls) / len(recalls),
-            "samples": len(scores),
-            "details": details,
-        }
+        return self.retriever.search(self.chunks, query=query, top_k=top_k)
 
     def save(self, path: str | Path) -> None:
-        payload = {
-            "index_version": self.INDEX_VERSION,
-            "vectorizer": self.vectorizer,
-            "chunks": self.chunks,
-            "matrix": self._matrix,
-            "ingest_config": self.ingest_config.__dict__,
-            "retrieval_config": self.retrieval_config.__dict__,
-            "doc_hashes": self._doc_hashes,
-            "semantic_embeddings": self._semantic_embeddings,
-        }
-        target = Path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("wb") as f:
-            pickle.dump(payload, f)
-        logger.info(
-            "index_saved", extra={"path": str(path), "chunks": len(self.chunks)}
-        )
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("wb") as fh:
+            pickle.dump(
+                {
+                    "index_version": self.INDEX_VERSION,
+                    "chunk_size": self.chunk_size,
+                    "overlap": self.overlap,
+                    "chunks": self.chunks,
+                    "vectorizer": self.retriever.vectorizer,
+                    "matrix": self.retriever._matrix,
+                },
+                fh,
+            )
 
     @classmethod
     def load(cls, path: str | Path) -> "RAGPipeline":
-        with Path(path).open("rb") as f:
-            payload = pickle.load(f)
-
+        with Path(path).open("rb") as fh:
+            payload = pickle.load(fh)
         if payload.get("index_version") != cls.INDEX_VERSION:
             raise ValueError("index version mismatch")
-
-        instance = cls(
-            ingest_config=IngestConfig(**payload.get("ingest_config", {})),
-            retrieval_config=RetrievalConfig(**payload.get("retrieval_config", {})),
-        )
-        instance.vectorizer = payload["vectorizer"]
-        instance.chunks = payload["chunks"]
-        instance._matrix = payload["matrix"]
-        instance._doc_hashes = payload.get("doc_hashes", {})
-        instance._semantic_embeddings = payload.get("semantic_embeddings")
-        return instance
-
-    def _encode_semantic_texts(self, texts: list[str]) -> Any:
-        if not self.retrieval_config.use_semantic or not texts:
-            return None
-        try:
-            if self._semantic_model is None:
-                from sentence_transformers import SentenceTransformer
-
-                self._semantic_model = SentenceTransformer(
-                    self.retrieval_config.semantic_model
-                )
-            return self._semantic_model.encode(texts)
-        except Exception:
-            logger.warning("semantic_embeddings_disabled", exc_info=True)
-            self.retrieval_config.use_semantic = False
-            return None
-
-    def _semantic_similarity(self, query: str) -> Any:
-        if (
-            not self.retrieval_config.use_semantic
-            or self._semantic_embeddings is None
-            or not query.strip()
-        ):
-            return None
-        try:
-            if self._semantic_model is None:
-                from sentence_transformers import SentenceTransformer
-
-                self._semantic_model = SentenceTransformer(
-                    self.retrieval_config.semantic_model
-                )
-            query_embedding = self._semantic_model.encode([query])
-            return cosine_similarity(query_embedding, self._semantic_embeddings)[0]
-        except Exception:
-            logger.warning("semantic_similarity_failed", exc_info=True)
-            return None
-
-    def _read_and_chunk(self, path: Path, seen_hashes: set[str]) -> list[Chunk]:
-        self._validate_file(path)
-        text = path.read_text(encoding="utf-8", errors="ignore")
-
-        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        if digest in seen_hashes:
-            logger.info("duplicate_document_skipped", extra={"path": str(path)})
-            return []
-
-        if len(text.strip()) < self.ingest_config.min_chars:
-            logger.info("document_too_short_skipped", extra={"path": str(path)})
-            return []
-
-        seen_hashes.add(digest)
-        self._doc_hashes[str(path)] = digest
-
-        return chunk_text(
-            text,
-            doc_id=str(path),
-            chunk_size=self.ingest_config.chunk_size,
-            overlap=self.ingest_config.overlap,
-            strategy=self.ingest_config.chunk_strategy,
-        )
-
-    def _validate_file(self, path: Path) -> None:
-        if path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
-            raise ValueError(f"unsupported extension: {path.suffix}")
-        if not path.exists() or not path.is_file():
-            raise ValueError(f"invalid file: {path}")
-        max_bytes = self.ingest_config.max_file_mb * 1024 * 1024
-        if path.stat().st_size > max_bytes:
-            raise ValueError(f"file too large: {path}")
-
-    @staticmethod
-    def _rerank_bonus(query_terms: set[str], chunk_terms: set[str]) -> float:
-        if not query_terms:
-            return 0.0
-        coverage = len(query_terms.intersection(chunk_terms)) / len(query_terms)
-        rare_term_bonus = (
-            1.0 if len(query_terms.intersection(chunk_terms)) >= 2 else 0.0
-        )
-        return 0.7 * coverage + 0.3 * rare_term_bonus
-
-
-def _normalize_terms(text: str) -> list[str]:
-    return re.findall(r"[\wÀ-ÖØ-öø-ÿ]+", text.lower())
+        rag = cls(chunk_size=payload["chunk_size"], overlap=payload["overlap"])
+        rag.chunks = payload["chunks"]
+        rag.retriever.vectorizer = payload["vectorizer"]
+        rag.retriever._matrix = payload["matrix"]
+        return rag
 
 
 def citations_to_dict(citations: list[Citation]) -> list[dict[str, Any]]:
     return [asdict(c) for c in citations]
 
 
-def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
-    entries: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            obj = json.loads(line)
-            if "query" not in obj or "relevant_doc_ids" not in obj:
-                raise ValueError(
-                    "invalid evaluation row: require query and relevant_doc_ids"
-                )
-
-            query = obj["query"]
-            if not isinstance(query, str) or not query.strip():
-                raise ValueError(
-                    "invalid evaluation row: query must be a non-blank string"
-                )
-
-            relevant_doc_ids = obj["relevant_doc_ids"]
-            if not isinstance(relevant_doc_ids, list) or not relevant_doc_ids:
-                raise ValueError(
-                    "invalid evaluation row: relevant_doc_ids must be a non-empty list"
-                )
-            if not all(
-                isinstance(doc_id, str) and doc_id.strip()
-                for doc_id in relevant_doc_ids
-            ):
-                raise ValueError(
-                    "invalid evaluation row: relevant_doc_ids entries must be non-blank strings"
-                )
-
-            entries.append(obj)
-    return entries
+def dump_eval(path: str | Path, rows: list[dict[str, Any]]) -> None:
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")

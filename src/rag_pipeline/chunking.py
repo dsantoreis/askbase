@@ -1,90 +1,47 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
-
-ChunkStrategy = Literal["char", "paragraph"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Chunk:
     doc_id: str
     text: str
-    start: int
-    end: int
+    start_char: int
+    end_char: int
 
 
-def chunk_text(
-    text: str,
-    doc_id: str,
-    chunk_size: int = 500,
-    overlap: int = 100,
-    strategy: ChunkStrategy = "char",
-) -> list[Chunk]:
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be > 0")
+def chunk_text(text: str, doc_id: str, chunk_size: int = 220, overlap: int = 40) -> list[Chunk]:
+    if chunk_size < 20:
+        raise ValueError("chunk_size must be >= 20")
     if overlap < 0 or overlap >= chunk_size:
         raise ValueError("overlap must be >= 0 and < chunk_size")
 
-    normalized = " ".join(text.split())
-    if not normalized:
+    words = text.split()
+    if not words:
         return []
 
-    if strategy == "paragraph":
-        return _paragraph_chunks(normalized, doc_id, chunk_size, overlap)
-    if strategy == "char":
-        return _char_chunks(normalized, doc_id, chunk_size, overlap)
+    normalized = " ".join(words)
+    starts: list[int] = []
+    cursor = 0
+    for word in words:
+        starts.append(cursor)
+        cursor += len(word) + 1
 
-    raise ValueError(f"unsupported chunk strategy: {strategy}")
-
-
-def _char_chunks(text: str, doc_id: str, chunk_size: int, overlap: int) -> list[Chunk]:
     chunks: list[Chunk] = []
     step = chunk_size - overlap
-    for start in range(0, len(text), step):
-        end = min(start + chunk_size, len(text))
-        snippet = text[start:end].strip()
-        if snippet:
-            chunks.append(Chunk(doc_id=doc_id, text=snippet, start=start, end=end))
-        if end >= len(text):
+    i = 0
+
+    while i < len(words):
+        end_idx = min(i + chunk_size, len(words))
+        window = words[i:end_idx]
+        chunk_txt = " ".join(window)
+        start_char = starts[i]
+        end_char = start_char + len(chunk_txt)
+        chunks.append(Chunk(doc_id=doc_id, text=chunk_txt, start_char=start_char, end_char=end_char))
+        if end_idx >= len(words):
             break
-    return chunks
+        i += step
 
-
-def _paragraph_chunks(
-    text: str, doc_id: str, chunk_size: int, overlap: int
-) -> list[Chunk]:
-    parts = [p.strip() for p in text.split(". ") if p.strip()]
-    chunks: list[Chunk] = []
-    current = ""
-    start = 0
-
-    for part in parts:
-        candidate = f"{current}. {part}" if current else part
-        if len(candidate) <= chunk_size:
-            current = candidate
-            continue
-
-        if current:
-            end = start + len(current)
-            chunks.append(Chunk(doc_id=doc_id, text=current, start=start, end=end))
-            start = max(0, end - overlap)
-
-        if len(part) > chunk_size:
-            oversized_chunks = _char_chunks(part, doc_id, chunk_size, overlap)
-            for chunk in oversized_chunks:
-                chunk.start += start
-                chunk.end += start
-            chunks.extend(oversized_chunks)
-            if oversized_chunks:
-                start = max(0, oversized_chunks[-1].end - overlap)
-            current = ""
-            continue
-
-        current = part
-
-    if current:
-        end = start + len(current)
-        chunks.append(Chunk(doc_id=doc_id, text=current, start=start, end=end))
-
+    assert chunks[-1].end_char <= len(normalized)
     return chunks
