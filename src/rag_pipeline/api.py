@@ -17,14 +17,19 @@ from .pipeline import RAGPipeline, citations_to_dict
 
 LATENCY_HISTORY_LIMIT = 1000
 ASK_QUERY_MAX_CHARS = 2000
+ASK_TOP_K_MAX = 20
+DOC_ID_MAX_CHARS = 256
+INGEST_TEXT_MAX_CHARS = 200_000
 
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=1, max_length=ASK_QUERY_MAX_CHARS)
-    top_k: int = Field(default=3, ge=1, le=20)
+    top_k: int = Field(default=3, ge=1, le=ASK_TOP_K_MAX)
     min_score: float = Field(default=0.0, ge=0.0)
-    doc_id: str | None = Field(default=None, min_length=1)
-    doc_id_contains: str | None = Field(default=None, min_length=1)
+    doc_id: str | None = Field(default=None, min_length=1, max_length=DOC_ID_MAX_CHARS)
+    doc_id_contains: str | None = Field(
+        default=None, min_length=1, max_length=DOC_ID_MAX_CHARS
+    )
 
     @model_validator(mode="after")
     def validate_doc_filters_are_mutually_exclusive(self) -> "AskRequest":
@@ -68,8 +73,10 @@ class AskResponse(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    text: str = Field(min_length=1)
-    doc_id: str = Field(default="api:document", min_length=1)
+    text: str = Field(min_length=1, max_length=INGEST_TEXT_MAX_CHARS)
+    doc_id: str = Field(
+        default="api:document", min_length=1, max_length=DOC_ID_MAX_CHARS
+    )
     replace_existing: bool = True
 
     @field_validator("text")
@@ -207,6 +214,13 @@ class RoutesHashResponse(BaseModel):
     routes_count: int
 
 
+class LimitsResponse(BaseModel):
+    ask_query_max_chars: int
+    ask_top_k_max: int
+    doc_id_max_chars: int
+    ingest_text_max_chars: int
+
+
 def _render_metrics(state: dict) -> str:
     uptime_seconds = time.monotonic() - state["started_at"]
     index_loaded = 1 if state["rag"] is not None else 0
@@ -260,6 +274,9 @@ def _render_metrics(state: dict) -> str:
         "# HELP rag_api_stats_requests_total Total number of /stats requests.",
         "# TYPE rag_api_stats_requests_total counter",
         f"rag_api_stats_requests_total {state['stats_requests_total']}",
+        "# HELP rag_api_limits_requests_total Total number of /limits requests.",
+        "# TYPE rag_api_limits_requests_total counter",
+        f"rag_api_limits_requests_total {state['limits_requests_total']}",
     ]
 
     if state["ask_latency_seconds"]:
@@ -350,6 +367,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "build_lite_requests_total": 0,
         "metrics_requests_total": 0,
         "stats_requests_total": 0,
+        "limits_requests_total": 0,
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_safe_requests_total": 0,
@@ -635,6 +653,16 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
+    @app.get("/limits", response_model=LimitsResponse)
+    def limits() -> LimitsResponse:
+        state["limits_requests_total"] += 1
+        return LimitsResponse(
+            ask_query_max_chars=ASK_QUERY_MAX_CHARS,
+            ask_top_k_max=ASK_TOP_K_MAX,
+            doc_id_max_chars=DOC_ID_MAX_CHARS,
+            ingest_text_max_chars=INGEST_TEXT_MAX_CHARS,
+        )
+
     @app.get("/stats", response_model=StatsResponse)
     def stats() -> StatsResponse:
         state["stats_requests_total"] += 1
@@ -676,6 +704,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             "build_info": state["build_info_requests_total"],
             "build_lite": state["build_lite_requests_total"],
             "metrics": state["metrics_requests_total"],
+            "limits": state["limits_requests_total"],
             "stats": state["stats_requests_total"],
         }
         return StatsResponse(

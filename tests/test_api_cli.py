@@ -156,6 +156,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert routes["/meta-lite"] == {"GET"}
     assert routes["/build-lite"] == {"GET"}
     assert routes["/diag-lite"] == {"GET"}
+    assert routes["/limits"] == {"GET"}
     assert routes["/ask"] == {"POST"}
     assert routes["/ask-safe"] == {"POST"}
     assert "openapi" not in openapi_lite_payload
@@ -207,6 +208,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
         "build_info": 1,
         "build_lite": 1,
         "metrics": 0,
+        "limits": 0,
         "stats": 1,
     }
     assert stats_before_ask_payload["requests_total"] == 19
@@ -217,6 +219,16 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert "rag_api_version_requests_total 1" in metrics.text
     assert "rag_api_ask_safe_requests_total 0" in metrics.text
     assert "rag_api_metrics_requests_total 1" in metrics.text
+
+    limits = client.get("/limits")
+    assert limits.status_code == 200
+    limits_payload = limits.json()
+    assert limits_payload == {
+        "ask_query_max_chars": 2000,
+        "ask_top_k_max": 20,
+        "doc_id_max_chars": 256,
+        "ingest_text_max_chars": 200000,
+    }
 
     res = client.post("/ask", json={"query": "How solve VPN issues?", "top_k": 2})
     assert res.status_code == 200
@@ -247,12 +259,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask_payload["counters"]["ask_safe"] == 0
     assert stats_after_ask_payload["counters"]["ask_safe_errors"] == 0
     assert stats_after_ask_payload["counters"]["metrics"] == 2
+    assert stats_after_ask_payload["counters"]["limits"] == 1
     assert stats_after_ask_payload["counters"]["stats"] == 2
     assert stats_after_ask_payload["ask_latency_samples"] == 2
     assert stats_after_ask_payload["ask_latency_avg_seconds"] >= 0
     assert stats_after_ask_payload["ingest_latency_samples"] == 0
     assert stats_after_ask_payload["ingest_latency_avg_seconds"] == 0
-    assert stats_after_ask_payload["requests_total"] == 24
+    assert stats_after_ask_payload["requests_total"] == 25
 
 
 def test_api_rejects_blank_query_with_422(tmp_path: Path):
@@ -285,6 +298,44 @@ def test_api_rejects_too_long_query_with_422(tmp_path: Path):
 
     res = client.post("/ask", json={"query": "x" * 2001, "top_k": 1})
     assert res.status_code == 422
+
+
+def test_api_rejects_too_long_doc_filter_with_422(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    res = client.post("/ask", json={"query": "MFA", "doc_id": "x" * 257})
+    assert res.status_code == 422
+
+
+def test_api_limits_endpoint_reports_contract(tmp_path: Path):
+    doc = tmp_path / "kb.txt"
+    doc.write_text("MFA reset runbook.", encoding="utf-8")
+
+    index = tmp_path / "rag.pkl"
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=80, overlap=10))
+    rag.ingest_paths([doc])
+    rag.save(index)
+
+    app = create_app(str(index))
+    client = TestClient(app)
+
+    limits = client.get("/limits")
+    assert limits.status_code == 200
+    assert limits.json() == {
+        "ask_query_max_chars": 2000,
+        "ask_top_k_max": 20,
+        "doc_id_max_chars": 256,
+        "ingest_text_max_chars": 200000,
+    }
 
 
 def test_api_ask_safe_requires_citations(tmp_path: Path):
@@ -505,6 +556,7 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
         "build_info": 0,
         "build_lite": 1,
         "metrics": 0,
+        "limits": 0,
         "stats": 1,
     }
     assert stats_payload["requests_total"] == 12
