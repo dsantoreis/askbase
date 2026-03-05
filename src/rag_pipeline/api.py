@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
@@ -46,6 +47,15 @@ class ReadyResponse(BaseModel):
     artifacts_dir_writable: bool
     index_path: str
     artifacts_dir: str
+
+
+class DiagResponse(BaseModel):
+    status: str
+    index_loaded: bool
+    index_path: str
+    index_file: dict
+    index_snapshot: dict
+    artifacts_snapshot: dict
 
 
 def _render_metrics(state: dict) -> str:
@@ -161,6 +171,74 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         return VersionResponse(
             app_version=app.version,
             index_path=str(state["index_path"]),
+        )
+
+    @app.get("/diag", response_model=DiagResponse)
+    def diag() -> DiagResponse:
+        index_path = state["index_path"]
+        artifacts_dir = index_path.parent
+        rag = state["rag"]
+
+        index_exists = index_path.exists() and index_path.is_file()
+        index_mtime = (
+            datetime.fromtimestamp(index_path.stat().st_mtime, tz=UTC).isoformat()
+            if index_exists
+            else None
+        )
+        index_file = {
+            "exists": index_exists,
+            "readable": index_exists and os.access(index_path, os.R_OK),
+            "size_bytes": index_path.stat().st_size if index_exists else 0,
+            "modified_at": index_mtime,
+        }
+
+        if rag is None:
+            index_snapshot = {
+                "index_version": None,
+                "chunks_count": 0,
+                "unique_doc_ids_count": 0,
+                "vectorizer_vocab_size": 0,
+            }
+        else:
+            index_snapshot = {
+                "index_version": getattr(rag, "INDEX_VERSION", None),
+                "chunks_count": len(rag.chunks),
+                "unique_doc_ids_count": len({c.doc_id for c in rag.chunks}),
+                "vectorizer_vocab_size": len(
+                    getattr(rag.vectorizer, "vocabulary_", {})
+                ),
+            }
+
+        extension_counts: dict[str, int] = {}
+        files_count = 0
+        total_size_bytes = 0
+        if artifacts_dir.exists() and artifacts_dir.is_dir():
+            for item in artifacts_dir.iterdir():
+                if not item.is_file():
+                    continue
+                files_count += 1
+                total_size_bytes += item.stat().st_size
+                ext = item.suffix.lower() or "<no_ext>"
+                extension_counts[ext] = extension_counts.get(ext, 0) + 1
+
+        artifacts_snapshot = {
+            "dir_exists": artifacts_dir.exists() and artifacts_dir.is_dir(),
+            "dir_readable": artifacts_dir.exists()
+            and os.access(artifacts_dir, os.R_OK | os.X_OK),
+            "dir_writable": artifacts_dir.exists()
+            and os.access(artifacts_dir, os.W_OK | os.X_OK),
+            "files_count": files_count,
+            "total_size_bytes": total_size_bytes,
+            "files_by_extension": extension_counts,
+        }
+
+        return DiagResponse(
+            status="ok",
+            index_loaded=rag is not None,
+            index_path=str(index_path),
+            index_file=index_file,
+            index_snapshot=index_snapshot,
+            artifacts_snapshot=artifacts_snapshot,
         )
 
     @app.get("/metrics")

@@ -10,9 +10,11 @@
     "dev": "npm run demo",
     "test:unit": "./.venv/bin/python -m pytest tests/test_pipeline.py",
     "test:persistence-smoke": "./.venv/bin/python -m pytest tests/test_pipeline.py -k persist_load",
+    "test:api-cli": "./.venv/bin/python -m pytest tests/test_api_cli.py",
     "format:check": "./.venv/bin/python -m ruff format --check src tests",
     "lint": "./.venv/bin/python -m ruff check src tests",
-    "quality": "bash ./scripts/quality-check.sh"
+    "quality": "bash ./scripts/quality-check.sh",
+    "quality:full": "npm run quality && npm run test:api-cli"
   },
   "keywords": [],
   "author": "",

@@ -36,6 +36,19 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert version_payload["app_version"] == "1.2.0"
     assert version_payload["index_path"] == str(index)
 
+    diag = client.get("/diag")
+    assert diag.status_code == 200
+    diag_payload = diag.json()
+    assert diag_payload["status"] == "ok"
+    assert diag_payload["index_loaded"] is True
+    assert diag_payload["index_snapshot"]["chunks_count"] >= 1
+    assert diag_payload["index_snapshot"]["unique_doc_ids_count"] >= 1
+    assert "excerpt" not in str(diag_payload).lower()
+    assert (
+        "vpn issues require checking mfa enrollment first"
+        not in str(diag_payload).lower()
+    )
+
     ready = client.get("/readyz")
     assert ready.status_code == 200
     ready_payload = ready.json()
@@ -64,6 +77,13 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
 def test_api_ask_without_index_returns_400(tmp_path: Path):
     app = create_app(str(tmp_path / "missing.pkl"))
     client = TestClient(app)
+
+    diag = client.get("/diag")
+    assert diag.status_code == 200
+    diag_payload = diag.json()
+    assert diag_payload["index_loaded"] is False
+    assert diag_payload["index_file"]["exists"] is False
+    assert diag_payload["index_snapshot"]["chunks_count"] == 0
 
     ready = client.get("/readyz")
     assert ready.status_code == 503
