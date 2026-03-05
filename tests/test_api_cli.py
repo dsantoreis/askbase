@@ -179,6 +179,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_before_ask_payload["uptime_seconds"] >= 0
     assert stats_before_ask_payload["ask_latency_samples"] == 0
     assert stats_before_ask_payload["ask_latency_avg_seconds"] == 0
+    assert stats_before_ask_payload["ingest_latency_samples"] == 0
+    assert stats_before_ask_payload["ingest_latency_avg_seconds"] == 0
     assert stats_before_ask_payload["counters"] == {
         "health": 1,
         "healthz_lite": 1,
@@ -230,6 +232,7 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
 
     metrics_after_ask = client.get("/metrics")
     assert "rag_api_ask_requests_total 2" in metrics_after_ask.text
+    assert "rag_api_ingest_latency_avg_seconds" in metrics_after_ask.text
 
     stats_after_ask = client.get("/stats")
     assert stats_after_ask.status_code == 200
@@ -239,6 +242,8 @@ def test_api_health_metrics_and_ask(tmp_path: Path):
     assert stats_after_ask_payload["counters"]["stats"] == 2
     assert stats_after_ask_payload["ask_latency_samples"] == 2
     assert stats_after_ask_payload["ask_latency_avg_seconds"] >= 0
+    assert stats_after_ask_payload["ingest_latency_samples"] == 0
+    assert stats_after_ask_payload["ingest_latency_avg_seconds"] == 0
     assert stats_after_ask_payload["requests_total"] == 24
 
 
@@ -394,6 +399,8 @@ def test_api_ask_without_index_returns_400(tmp_path: Path):
     stats_payload = stats.json()
     assert stats_payload["ask_latency_samples"] == 0
     assert stats_payload["ask_latency_avg_seconds"] == 0
+    assert stats_payload["ingest_latency_samples"] == 0
+    assert stats_payload["ingest_latency_avg_seconds"] == 0
     assert stats_payload["counters"] == {
         "health": 0,
         "healthz_lite": 0,
@@ -490,6 +497,8 @@ def test_api_ingest_then_ask(tmp_path: Path):
     assert stats_payload["counters"]["ask_errors"] == 0
     assert stats_payload["ask_latency_samples"] == 3
     assert stats_payload["ask_latency_avg_seconds"] >= 0
+    assert stats_payload["ingest_latency_samples"] == 2
+    assert stats_payload["ingest_latency_avg_seconds"] >= 0
 
 
 def test_api_ingest_supports_append_mode(tmp_path: Path):

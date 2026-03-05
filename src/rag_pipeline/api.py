@@ -174,6 +174,8 @@ class StatsResponse(BaseModel):
     requests_total: int
     ask_latency_avg_seconds: float
     ask_latency_samples: int
+    ingest_latency_avg_seconds: float
+    ingest_latency_samples: int
     counters: dict[str, int]
 
 
@@ -245,17 +247,27 @@ def _render_metrics(state: dict) -> str:
     ]
 
     if state["ask_latency_seconds"]:
-        avg_latency = sum(state["ask_latency_seconds"]) / len(
+        ask_avg_latency = sum(state["ask_latency_seconds"]) / len(
             state["ask_latency_seconds"]
         )
     else:
-        avg_latency = 0.0
+        ask_avg_latency = 0.0
+
+    if state["ingest_latency_seconds"]:
+        ingest_avg_latency = sum(state["ingest_latency_seconds"]) / len(
+            state["ingest_latency_seconds"]
+        )
+    else:
+        ingest_avg_latency = 0.0
 
     lines.extend(
         [
             "# HELP rag_api_ask_latency_avg_seconds Average latency of /ask in seconds.",
             "# TYPE rag_api_ask_latency_avg_seconds gauge",
-            f"rag_api_ask_latency_avg_seconds {avg_latency:.6f}",
+            f"rag_api_ask_latency_avg_seconds {ask_avg_latency:.6f}",
+            "# HELP rag_api_ingest_latency_avg_seconds Average latency of /ingest in seconds.",
+            "# TYPE rag_api_ingest_latency_avg_seconds gauge",
+            f"rag_api_ingest_latency_avg_seconds {ingest_avg_latency:.6f}",
         ]
     )
 
@@ -318,6 +330,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         "ask_requests_total": 0,
         "ask_errors_total": 0,
         "ask_latency_seconds": [],
+        "ingest_latency_seconds": [],
         "ingest_requests_total": 0,
         "ingest_errors_total": 0,
     }
@@ -600,9 +613,17 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
     @app.get("/stats", response_model=StatsResponse)
     def stats() -> StatsResponse:
         state["stats_requests_total"] += 1
-        latency_samples = state["ask_latency_seconds"]
+        ask_latency_samples = state["ask_latency_seconds"]
         ask_latency_avg_seconds = (
-            sum(latency_samples) / len(latency_samples) if latency_samples else 0.0
+            sum(ask_latency_samples) / len(ask_latency_samples)
+            if ask_latency_samples
+            else 0.0
+        )
+        ingest_latency_samples = state["ingest_latency_seconds"]
+        ingest_latency_avg_seconds = (
+            sum(ingest_latency_samples) / len(ingest_latency_samples)
+            if ingest_latency_samples
+            else 0.0
         )
 
         counters = {
@@ -635,13 +656,16 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
             uptime_seconds=time.monotonic() - state["started_at"],
             requests_total=sum(counters.values()),
             ask_latency_avg_seconds=ask_latency_avg_seconds,
-            ask_latency_samples=len(latency_samples),
+            ask_latency_samples=len(ask_latency_samples),
+            ingest_latency_avg_seconds=ingest_latency_avg_seconds,
+            ingest_latency_samples=len(ingest_latency_samples),
             counters=counters,
         )
 
     @app.post("/ingest", response_model=IngestResponse)
     def ingest(req: IngestRequest) -> IngestResponse:
         state["ingest_requests_total"] += 1
+        started = time.perf_counter()
 
         rag = state["rag"]
         if rag is None:
@@ -676,6 +700,7 @@ def create_app(index_path: str = "rag_index.pkl") -> FastAPI:
         rag._matrix = rag.vectorizer.fit_transform(texts) if texts else None
         rag._semantic_embeddings = rag._encode_semantic_texts(texts)
         rag.save(state["index_path"])
+        state["ingest_latency_seconds"].append(time.perf_counter() - started)
 
         return IngestResponse(
             chunks_indexed=len(chunks), index_path=str(state["index_path"])
