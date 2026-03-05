@@ -250,6 +250,28 @@ def test_evaluate_rejects_non_positive_k(sample_docs: list[Path], tmp_path: Path
         loaded.evaluate_precision_at_k(eval_data, k=0)
 
 
+def test_evaluate_rejects_blank_query(sample_docs: list[Path], tmp_path: Path):
+    rag = RAGPipeline(ingest_config=IngestConfig(chunk_size=100, overlap=10))
+    rag.ingest_paths(sample_docs)
+
+    eval_data = tmp_path / "eval.jsonl"
+    eval_data.write_text(
+        json.dumps(
+            {
+                "query": "   ",
+                "relevant_doc_ids": [str(sample_docs[0])],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="query must be a non-blank string",
+    ):
+        rag.evaluate_precision_at_k(eval_data, k=1)
+
+
 def test_evaluate_rejects_non_list_relevant_doc_ids(
     sample_docs: list[Path], tmp_path: Path
 ):

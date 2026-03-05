@@ -400,6 +400,12 @@ def _load_eval_jsonl(path: Path) -> list[dict[str, Any]]:
                     "invalid evaluation row: require query and relevant_doc_ids"
                 )
 
+            query = obj["query"]
+            if not isinstance(query, str) or not query.strip():
+                raise ValueError(
+                    "invalid evaluation row: query must be a non-blank string"
+                )
+
             relevant_doc_ids = obj["relevant_doc_ids"]
             if not isinstance(relevant_doc_ids, list) or not relevant_doc_ids:
                 raise ValueError(
