@@ -1,5 +1,8 @@
 # Enterprise RAG Platform (Portfolio Demo)
 
+[![CI](../../actions/workflows/ci.yml/badge.svg)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+
+
 [![CI](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/rag-pipeline-demo/actions/workflows/ci.yml)
 
 Production-shaped **Enterprise RAG Platform**: backend API + Next.js chat + admin panel + auth/rate-limit/logging/metrics + Kubernetes + CI + test pyramid + performance scripts.
@@ -79,3 +82,40 @@ Coverage gate enforced in CI: `--cov-fail-under=80`.
 - `python scripts/load_test.py --n 100`
 - `bash scripts/chaos_test.sh`
 - `bash scripts/soak_test.sh 300`
+
+
+## Conversion Standard
+
+### Hero
+Production-ready solution for a concrete business problem with measurable outcome.
+
+### Problem
+Describe the pain with one sentence and a real operator context.
+
+### Demo
+Add a GIF at `docs/assets/demo.gif` and reference it here.
+
+### Quickstart (3 commands)
+```bash
+make setup || pnpm install || npm install
+make test || pnpm test || npm test
+make run || pnpm dev || npm run dev
+```
+
+### Architecture
+Document API, workers, and storage in `docs/architecture.md`.
+
+### Results
+Add benchmark, latency, throughput, or conversion impact.
+
+### Roadmap
+Include 30-day and 90-day milestones.
+
+### CTA
+If this helps, star the repo and open an issue with your use case.
+
+
+## Docs
+
+- Local docs site config: `mkdocs.yml`
+- Entry point: `docs/index.md`

@@ -1,0 +1,12 @@
+site_name: Project Docs
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Operations: operations.md
