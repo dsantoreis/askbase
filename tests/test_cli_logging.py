@@ -66,3 +66,24 @@ def test_cli_ask_invalid_top_k_exits(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("sys.argv", ["rag", "ask", "hi", "--index", str(idx), "--top-k", "0"])
     with pytest.raises(SystemExit):
         cli.main()
+
+
+def test_cli_status_reports_index_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    missing = tmp_path / "missing.pkl"
+    monkeypatch.setattr("sys.argv", ["rag", "status", "--index", str(missing)])
+    cli.main()
+    missing_payload = json.loads(capsys.readouterr().out)
+    assert missing_payload["index_exists"] is False
+
+    doc = tmp_path / "status.txt"
+    doc.write_text("SOC2 logging controls", encoding="utf-8")
+    idx = tmp_path / "idx.pkl"
+    rag = cli.RAGPipeline()
+    rag.ingest([doc])
+    rag.save(idx)
+
+    monkeypatch.setattr("sys.argv", ["rag", "status", "--index", str(idx)])
+    cli.main()
+    present_payload = json.loads(capsys.readouterr().out)
+    assert present_payload["index_exists"] is True
+    assert present_payload["chunks"] > 0
