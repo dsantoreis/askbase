@@ -1,0 +1,4 @@
+services:
+  docs:
+    build: .
+    ports: ["4321:4321"]

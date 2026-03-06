@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: askbase-docs}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: askbase-docs}}
+  template:
+    metadata: {labels: {app: askbase-docs}}
+    spec:
+      containers:
+        - name: docs
+          image: askbase-docs:latest
+          ports: [{containerPort: 4321}]
