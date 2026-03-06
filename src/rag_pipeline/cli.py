@@ -39,6 +39,7 @@ def main() -> None:
 
     status = sub.add_parser("status")
     status.add_argument("--index", default="artifacts/rag_index.pkl")
+    status.add_argument("--pretty", action="store_true")
 
     args = parser.parse_args()
 
@@ -76,21 +77,19 @@ def main() -> None:
     if args.command == "status":
         index_path = Path(args.index)
         if not index_path.exists():
-            print(json.dumps({"index_exists": False, "index_path": str(index_path), "chunks": 0}))
+            payload = {"index_exists": False, "index_path": str(index_path), "chunks": 0}
+            print(json.dumps(payload, indent=2 if args.pretty else None))
             return
 
         rag = RAGPipeline.load(index_path)
-        print(
-            json.dumps(
-                {
-                    "index_exists": True,
-                    "index_path": str(index_path),
-                    "chunks": len(rag.chunks),
-                    "chunk_size": rag.chunk_size,
-                    "overlap": rag.overlap,
-                }
-            )
-        )
+        payload = {
+            "index_exists": True,
+            "index_path": str(index_path),
+            "chunks": len(rag.chunks),
+            "chunk_size": rag.chunk_size,
+            "overlap": rag.overlap,
+        }
+        print(json.dumps(payload, indent=2 if args.pretty else None))
 
 
 if __name__ == "__main__":

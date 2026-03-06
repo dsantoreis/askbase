@@ -87,3 +87,13 @@ def test_cli_status_reports_index_state(tmp_path: Path, monkeypatch: pytest.Monk
     present_payload = json.loads(capsys.readouterr().out)
     assert present_payload["index_exists"] is True
     assert present_payload["chunks"] > 0
+
+
+def test_cli_status_supports_pretty_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    missing = tmp_path / "missing.pkl"
+    monkeypatch.setattr("sys.argv", ["rag", "status", "--index", str(missing), "--pretty"])
+    cli.main()
+    out = capsys.readouterr().out
+    assert "\n" in out
+    payload = json.loads(out)
+    assert payload["index_exists"] is False
