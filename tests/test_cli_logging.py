@@ -58,3 +58,11 @@ def test_cli_ask_missing_index_exits(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("sys.argv", ["rag", "ask", "hi", "--index", str(missing)])
     with pytest.raises(SystemExit):
         cli.main()
+
+
+def test_cli_ask_invalid_top_k_exits(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    idx = tmp_path / "idx.pkl"
+    idx.write_bytes(b"placeholder")
+    monkeypatch.setattr("sys.argv", ["rag", "ask", "hi", "--index", str(idx), "--top-k", "0"])
+    with pytest.raises(SystemExit):
+        cli.main()

@@ -47,6 +47,9 @@ def main() -> None:
         return
 
     if args.command == "ask":
+        if args.top_k <= 0:
+            raise SystemExit("--top-k must be >= 1")
+
         index_path = Path(args.index)
         if not index_path.exists():
             raise SystemExit(f"index not found: {index_path}")
