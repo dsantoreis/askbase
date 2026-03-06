@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import uvicorn
@@ -76,8 +77,15 @@ def main() -> None:
 
     if args.command == "status":
         index_path = Path(args.index)
+        generated_at_utc = datetime.now(timezone.utc).isoformat()
+
         if not index_path.exists():
-            payload = {"index_exists": False, "index_path": str(index_path), "chunks": 0}
+            payload = {
+                "index_exists": False,
+                "index_path": str(index_path),
+                "chunks": 0,
+                "generated_at_utc": generated_at_utc,
+            }
             print(json.dumps(payload, indent=2 if args.pretty else None))
             return
 
@@ -88,6 +96,7 @@ def main() -> None:
             "chunks": len(rag.chunks),
             "chunk_size": rag.chunk_size,
             "overlap": rag.overlap,
+            "generated_at_utc": generated_at_utc,
         }
         print(json.dumps(payload, indent=2 if args.pretty else None))
 

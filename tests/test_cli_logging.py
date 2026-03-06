@@ -74,6 +74,7 @@ def test_cli_status_reports_index_state(tmp_path: Path, monkeypatch: pytest.Monk
     cli.main()
     missing_payload = json.loads(capsys.readouterr().out)
     assert missing_payload["index_exists"] is False
+    assert isinstance(missing_payload["generated_at_utc"], str)
 
     doc = tmp_path / "status.txt"
     doc.write_text("SOC2 logging controls", encoding="utf-8")
@@ -87,6 +88,7 @@ def test_cli_status_reports_index_state(tmp_path: Path, monkeypatch: pytest.Monk
     present_payload = json.loads(capsys.readouterr().out)
     assert present_payload["index_exists"] is True
     assert present_payload["chunks"] > 0
+    assert isinstance(present_payload["generated_at_utc"], str)
 
 
 def test_cli_status_supports_pretty_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
