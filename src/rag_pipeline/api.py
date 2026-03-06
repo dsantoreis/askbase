@@ -53,6 +53,15 @@ def create_app(index_path: str = "artifacts/rag_index.pkl") -> FastAPI:
     def health() -> dict:
         return {"status": "ok", "index_loaded": state["rag"] is not None}
 
+    @app.api_route("/readyz", methods=["GET", "HEAD"])
+    def readyz() -> dict:
+        chunks_loaded = len(state["rag"].chunks) if state["rag"] else 0
+        return {
+            "ready": state["rag"] is not None,
+            "chunks_loaded": chunks_loaded,
+            "index_path": str(state["index_path"]),
+        }
+
     @app.get("/metrics")
     async def metrics() -> object:
         return await metrics_endpoint()

@@ -61,3 +61,32 @@ def test_health_head_probe(tmp_path: Path) -> None:
     res = client.head("/health")
     assert res.status_code == 200
     assert res.text == ""
+
+
+def test_readyz_reflects_index_state(tmp_path: Path) -> None:
+    index = tmp_path / "idx.pkl"
+    app = create_app(index_path=str(index))
+    client = TestClient(app)
+
+    cold = client.get("/readyz")
+    assert cold.status_code == 200
+    assert cold.json()["ready"] is False
+    assert cold.json()["chunks_loaded"] == 0
+
+    doc = tmp_path / "ready-doc.txt"
+    doc.write_text("SOC2 controls evidence and audit schedule", encoding="utf-8")
+    rag = RAGPipeline()
+    rag.ingest([doc])
+    rag.save(index)
+
+    app_warm = create_app(index_path=str(index))
+    client_warm = TestClient(app_warm)
+
+    warm = client_warm.get("/readyz")
+    assert warm.status_code == 200
+    assert warm.json()["ready"] is True
+    assert warm.json()["chunks_loaded"] > 0
+
+    head = client_warm.head("/readyz")
+    assert head.status_code == 200
+    assert head.text == ""
