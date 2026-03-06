@@ -63,6 +63,23 @@ def test_health_head_probe(tmp_path: Path) -> None:
     assert res.text == ""
 
 
+def test_statusz_reports_version_and_uptime(tmp_path: Path) -> None:
+    app = create_app(index_path=str(tmp_path / "idx.pkl"))
+    client = TestClient(app)
+
+    status = client.get("/statusz")
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "ok"
+    assert body["version"] == "4.0.0"
+    assert isinstance(body["uptime_sec"], int)
+    assert body["uptime_sec"] >= 0
+
+    head = client.head("/statusz")
+    assert head.status_code == 200
+    assert head.text == ""
+
+
 def test_readyz_reflects_index_state(tmp_path: Path) -> None:
     index = tmp_path / "idx.pkl"
     app = create_app(index_path=str(index))

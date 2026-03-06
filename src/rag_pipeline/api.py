@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import monotonic
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -33,6 +34,7 @@ def create_app(index_path: str = "artifacts/rag_index.pkl") -> FastAPI:
         "rag": None,
         "auth": AuthManager(),
         "limiter": InMemoryRateLimiter(),
+        "started_at": monotonic(),
     }
 
     if state["index_path"].exists():
@@ -60,6 +62,17 @@ def create_app(index_path: str = "artifacts/rag_index.pkl") -> FastAPI:
             "ready": state["rag"] is not None,
             "chunks_loaded": chunks_loaded,
             "index_path": str(state["index_path"]),
+        }
+
+    @app.api_route("/statusz", methods=["GET", "HEAD"])
+    def statusz() -> dict:
+        chunks_loaded = len(state["rag"].chunks) if state["rag"] else 0
+        return {
+            "status": "ok",
+            "ready": state["rag"] is not None,
+            "chunks_loaded": chunks_loaded,
+            "uptime_sec": int(monotonic() - state["started_at"]),
+            "version": app.version,
         }
 
     @app.get("/metrics")
