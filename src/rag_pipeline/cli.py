@@ -37,6 +37,7 @@ def main() -> None:
     serve.add_argument("--index", default="artifacts/rag_index.pkl")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8080)
+    serve.add_argument("--seed", action="store_true", help="Auto-ingest data/seed/ on first run if no index exists")
 
     status = sub.add_parser("status")
     status.add_argument("--index", default="artifacts/rag_index.pkl")
@@ -72,6 +73,13 @@ def main() -> None:
         return
 
     if args.command == "serve":
+        if args.seed and not Path(args.index).exists():
+            seed_dir = Path(__file__).resolve().parent.parent.parent / "data" / "seed"
+            if seed_dir.is_dir():
+                rag = RAGPipeline()
+                chunks = rag.ingest([str(seed_dir)])
+                rag.save(args.index)
+                print(f"Seed mode: indexed {chunks} chunks from {seed_dir}")
         uvicorn.run(create_app(index_path=args.index), host=args.host, port=args.port)
         return
 
