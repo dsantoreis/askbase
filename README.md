@@ -2,7 +2,7 @@
 
 **Your support team answers questions in seconds, not hours.**
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![CI](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml/badge.svg)](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 Askbase is a RAG-powered knowledge retrieval platform for support teams. Ingest your docs, ask questions in natural language, get grounded answers with precise citations — no hallucinations, no guesswork.
 
