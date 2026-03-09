@@ -1,14 +1,54 @@
 name: docs-site
+
 on:
-  push: {paths: ['docs-site/**','.github/workflows/docs-site.yml']}
-  pull_request: {paths: ['docs-site/**','.github/workflows/docs-site.yml']}
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-site/**'
+      - '.github/workflows/docs-site.yml'
+  pull_request:
+    paths:
+      - 'docs-site/**'
+      - '.github/workflows/docs-site.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults: {run: {working-directory: docs-site}}
+    defaults:
+      run:
+        working-directory: docs-site
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22', cache: 'npm', cache-dependency-path: docs-site/package-lock.json}
-      - run: npm install
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: docs-site/package-lock.json
+      - run: npm ci
       - run: npm run build
+      - name: Upload pages artifact
+        if: github.event_name != 'pull_request' && vars.ENABLE_GITHUB_PAGES == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && vars.ENABLE_GITHUB_PAGES == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
