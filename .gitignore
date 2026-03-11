@@ -9,3 +9,4 @@ rag_index.pkl
 src/*.egg-info/
 frontend/.next/
 frontend/test-results/
+docs-site/.astro
