@@ -1,7 +1,6 @@
 """Final coverage push targeting remaining uncovered lines."""
 import json
 import logging
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
