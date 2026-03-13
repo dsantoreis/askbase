@@ -2,7 +2,7 @@
 
 **Your support team answers questions in seconds, not hours.**
 
-[![CI](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml/badge.svg)](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml) [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE) [![Release](https://img.shields.io/github/v/release/dsantoreis/askbase)](https://github.com/dsantoreis/askbase/releases/latest) [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://dsantoreis.github.io/askbase/)
+[![CI](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml/badge.svg)](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml) [![Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen)](https://github.com/dsantoreis/askbase/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE) [![Release](https://img.shields.io/github/v/release/dsantoreis/askbase)](https://github.com/dsantoreis/askbase/releases/latest) [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://dsantoreis.github.io/askbase/)
 
 Askbase is a RAG-powered knowledge retrieval platform for support teams. Ingest your docs, ask questions in natural language, get grounded answers with precise citations — no hallucinations, no guesswork.
 
