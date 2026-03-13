@@ -1,0 +1,32 @@
+---
+title: Askbase
+description: RAG-powered knowledge retrieval with citations. No hallucinations.
+template: splash
+hero:
+  tagline: Your support team answers questions in seconds, not hours. Ingest docs, ask questions, get grounded answers with exact citations.
+  actions:
+    - text: Get started
+      link: /getting-started
+      icon: right-arrow
+      variant: primary
+    - text: API Reference
+      link: /api-reference
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Zero hallucinations" icon="approve-check">
+    Every answer traces back to source documents with character-level offsets.
+  </Card>
+  <Card title="No external dependencies" icon="setting">
+    TF-IDF embeddings, local index file, pure Python. No vector DB or API keys needed.
+  </Card>
+  <Card title="Production ready" icon="rocket">
+    Auth, rate limiting, Prometheus metrics, Docker, and Kubernetes manifests included.
+  </Card>
+  <Card title="CLI + API" icon="laptop">
+    Ingest and query from the terminal or through the FastAPI HTTP interface.
+  </Card>
+</CardGrid>
